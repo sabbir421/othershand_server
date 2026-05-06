@@ -1,0 +1,32 @@
+const express = require('express');
+const authRoutes = require('./authRoutes');
+const productRoutes = require('./productRoutes');
+const profitRoutes = require('./profitRoutes');
+const aiRoutes = require('./aiRoutes');
+const stripeRoutes = require('./stripeRoutes');
+const adminRoutes = require('./adminRoutes');
+const researchRoutes = require('./researchRoutes');
+const launchRoutes = require('./launchRoutes');
+const supplierRoutes = require('./supplierRoutes');
+const productRequestRoutes = require('./productRequestRoutes');
+const uploadRoutes = require('./uploadRoutes');
+const sellerRoutes = require('./sellerRoutes');
+const marketRoutes = require('./marketRoutes');
+
+const router = express.Router();
+
+router.use('/auth', authRoutes);
+router.use('/products', productRoutes);
+router.use('/profit', profitRoutes);
+router.use('/ai', aiRoutes);
+router.use('/stripe', stripeRoutes);
+router.use('/admin', adminRoutes);
+router.use('/research', researchRoutes);
+router.use('/launch', launchRoutes);
+router.use('/suppliers', supplierRoutes);
+router.use('/requests', productRequestRoutes);
+router.use('/upload', uploadRoutes);
+router.use('/seller', sellerRoutes);
+router.use('/marketplace', marketRoutes);
+
+module.exports = router;
