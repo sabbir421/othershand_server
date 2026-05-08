@@ -12,6 +12,7 @@ const productRequestRoutes = require('./productRequestRoutes');
 const uploadRoutes = require('./uploadRoutes');
 const sellerRoutes = require('./sellerRoutes');
 const marketRoutes = require('./marketRoutes');
+const publicRoutes = require('./publicRoutes');
 
 const router = express.Router();
 
@@ -28,5 +29,6 @@ router.use('/requests', productRequestRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/seller', sellerRoutes);
 router.use('/marketplace', marketRoutes);
+router.use('/public', publicRoutes);
 
 module.exports = router;
