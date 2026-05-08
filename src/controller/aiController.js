@@ -121,7 +121,69 @@ const generateListing = async (req, res) => {
   }
 };
 
+// @desc    Compare multiple products with AI
+// @route   POST /api/ai/compare
+// @access  Private
+const compareProducts = async (req, res) => {
+  try {
+    const { products } = req.body;
+
+    if (!products || !Array.isArray(products) || products.length < 2) {
+      return res.status(400).json({ message: 'Select at least 2 products for comparison' });
+    }
+
+    const productsData = products.map((p, idx) => `
+      PRODUCT #${idx + 1}:
+      Keyword: ${p.primaryKeyword}
+      Category: ${p.category}
+      BSR: ${p.bsr}
+      Reviews: ${p.reviews}
+      Retail Price: $${p.retailPrice}
+      Net Profit (Sea): $${p.netProfitSea}
+      Margin (Sea): ${p.marginSea}%
+      Net Profit (Air): $${p.netProfitAir}
+      Margin (Air): ${p.marginAir}%
+    `).join('\n');
+
+    const prompt = `
+      You are an elite Amazon FBA Strategy Consultant.
+      Compare the following product ideas and determine which one has the highest probability of a successful launch.
+      
+      DATA SET:
+      ${productsData}
+      
+      STRICT REQUIREMENTS:
+      1. ANALYZE: For each product, provide a short 1-2 sentence pros/cons.
+      2. RECOMMENDATION: Explicitly state which Product # is the "Winner".
+      3. RATIONALE: Provide a deep strategic reason for why the winner was chosen (consider profit, risk, and market entry barriers).
+      4. STRATEGY: Give a 3-step action plan for the winning product.
+
+      Return the response STRICTLY as a JSON object with:
+      - "comparisons": (Array of strings, one for each product matching the index)
+      - "winnerIndex": (Integer, index of the winning product from 0 to n-1)
+      - "recommendation": (String, title of winning product)
+      - "rationale": (String, detailed analysis)
+      - "actionPlan": (Array of 3 strings)
+    `;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+      max_tokens: 2000
+    });
+
+    const aiResult = JSON.parse(response.choices[0].message.content);
+    res.json(aiResult);
+  } catch (error) {
+    console.error('AI Comparison Error:', error);
+    res.status(500).json({ message: 'Error generating AI comparison' });
+  }
+};
+
 module.exports = {
   validateProduct,
   generateListing,
+  compareProducts
 };

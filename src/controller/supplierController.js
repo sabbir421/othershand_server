@@ -68,7 +68,7 @@ const createSupplierQuote = async (req, res) => {
     
     // Clean empty strings for numeric fields
     const numericFields = [
-      'unitPrice', 'packagingPrice', 'shippingAir', 'shippingSea', 'samplePrice'
+      'unitPrice', 'packagingPrice', 'shippingAir', 'shippingSea', 'samplePrice', 'shippingCost'
     ];
     
     numericFields.forEach(field => {
@@ -144,7 +144,7 @@ const deleteSupplierQuote = async (req, res) => {
 const updateSupplierQuote = async (req, res) => {
   try {
     const data = { ...req.body };
-    const numericFields = ['unitPrice', 'packagingPrice', 'shippingAir', 'shippingSea', 'samplePrice'];
+    const numericFields = ['unitPrice', 'packagingPrice', 'shippingAir', 'shippingSea', 'samplePrice', 'shippingCost'];
     numericFields.forEach(field => {
       if (data[field] === '' || data[field] === undefined) data[field] = null;
     });

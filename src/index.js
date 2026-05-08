@@ -85,6 +85,8 @@ const startServer = async () => {
   await addColumnIfNotExists('supplier_quotes', 'shippingDurationSea', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('supplier_quotes', 'samplePrice', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('supplier_quotes', 'sampleDuration', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('supplier_quotes', 'shippingCost', 'DECIMAL(10, 2) NULL');
+  await addColumnIfNotExists('supplier_quotes', 'shippingTime', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('supplier_quotes', 'packagingPrice', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('supplier_quotes', 'finalUnitPriceAir', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('supplier_quotes', 'finalUnitPriceSea', 'DECIMAL(10, 2) NULL');

@@ -35,6 +35,9 @@ const SupplierModel = sequelize.define('SupplierQuote', {
   samplePrice: { type: DataTypes.DECIMAL(10, 2) },
   sampleDuration: { type: DataTypes.STRING },
   
+  shippingCost: { type: DataTypes.DECIMAL(10, 2) },
+  shippingTime: { type: DataTypes.STRING },
+  
   packagingPrice: { type: DataTypes.DECIMAL(10, 2) },
   finalUnitPriceAir: { type: DataTypes.DECIMAL(10, 2) },
   finalUnitPriceSea: { type: DataTypes.DECIMAL(10, 2) },
