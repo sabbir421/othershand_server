@@ -102,6 +102,7 @@ const startServer = async () => {
   await addColumnIfNotExists('market_products', 'vaultContents', 'JSON NULL');
   await addColumnIfNotExists('market_products', 'expectedProfitMargin', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('market_products', 'viewCount', 'INT DEFAULT 0');
+  await addColumnIfNotExists('plans', 'features', 'JSON NULL');
 
   console.log('Database sync sequence completed');
 

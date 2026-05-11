@@ -9,12 +9,19 @@ const MarketProduct = require('../models/MarketProductModel');
 // @access  Private
 const createCheckoutSession = async (req, res) => {
   try {
+    const { planId } = req.body;
     const user = await UserModel.findByPk(req.user.id);
     
-    // Find the active plan to get the stripePriceId
-    const activePlan = await PlanModel.findOne({ where: { isActive: true } });
-    if (!activePlan || !activePlan.stripePriceId) {
-      return res.status(400).json({ message: 'Subscription plan is not properly configured by admin yet.' });
+    // Find the specific plan or the first active one
+    let targetPlan;
+    if (planId) {
+      targetPlan = await PlanModel.findByPk(planId);
+    } else {
+      targetPlan = await PlanModel.findOne({ where: { isActive: true }, order: [['price', 'ASC']] });
+    }
+
+    if (!targetPlan || !targetPlan.stripePriceId || !targetPlan.isActive) {
+      return res.status(400).json({ message: 'Selected subscription plan is not available.' });
     }
 
     let customerId = user.stripeCustomerId;
@@ -37,7 +44,7 @@ const createCheckoutSession = async (req, res) => {
       payment_method_types: ['card'],
       line_items: [
         {
-          price: activePlan.stripePriceId,
+          price: targetPlan.stripePriceId,
           quantity: 1,
         },
       ],

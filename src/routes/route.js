@@ -13,6 +13,7 @@ const uploadRoutes = require('./uploadRoutes');
 const sellerRoutes = require('./sellerRoutes');
 const marketRoutes = require('./marketRoutes');
 const publicRoutes = require('./publicRoutes');
+const feedbackRoutes = require('./feedbackRoutes');
 
 const router = express.Router();
 
@@ -30,5 +31,6 @@ router.use('/upload', uploadRoutes);
 router.use('/seller', sellerRoutes);
 router.use('/marketplace', marketRoutes);
 router.use('/public', publicRoutes);
+router.use('/feedback', feedbackRoutes);
 
 module.exports = router;

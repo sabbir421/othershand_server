@@ -12,6 +12,7 @@ const protect = async (req, res, next) => {
   ) {
     try {
       token = req.headers.authorization.split(' ')[1];
+      console.log('Verifying Token:', token);
       const decoded = jwt.verify(token, 'doorap_fba_secret_2026');
       console.log('Decoded Token:', decoded);
 
@@ -32,7 +33,7 @@ const protect = async (req, res, next) => {
 
       next();
     } catch (error) {
-      console.error(error);
+      console.error('JWT Verification Error:', error.message);
       res.status(401).json({ message: 'Not authorized, token failed' });
     }
   }

@@ -5,15 +5,17 @@ const PlanModel = require('../models/PlanModel');
 // @access  Public
 const getPublicPlans = async (req, res) => {
   try {
-    const activePlan = await PlanModel.findOne({ 
+    const activePlans = await PlanModel.findAll({ 
       where: { isActive: true },
-      attributes: ['name', 'price'] // Don't expose stripe IDs to public
+      attributes: ['id', 'name', 'price', 'features'],
+      order: [['price', 'ASC']]
     });
     
-    // Default fallback if no plan exists in DB
-    const plan = activePlan || { name: 'Pro Plan', price: 29.99 };
-    
-    res.json(plan);
+    if (activePlans.length === 0) {
+      return res.json([{ id: 0, name: 'Pro Strategy', price: 29.99, features: ["Neural Intelligence"] }]);
+    }
+
+    res.json(activePlans);
   } catch (error) {
     console.error('Public Plan Error:', error);
     res.status(500).json({ message: 'Error fetching plans' });

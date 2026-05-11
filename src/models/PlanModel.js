@@ -25,6 +25,10 @@ const PlanModel = sequelize.define('Plan', {
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true,
+  },
+  features: {
+    type: DataTypes.JSON,
+    allowNull: true,
   }
 }, {
   tableName: 'plans',

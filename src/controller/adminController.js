@@ -45,65 +45,86 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// @desc    Get Current Plan
-// @route   GET /api/admin/plan
+// @desc    Get All Plans
+// @route   GET /api/admin/plans
 // @access  Private/Admin
-const getCurrentPlan = async (req, res) => {
+const getAllPlans = async (req, res) => {
   try {
-    const activePlan = await PlanModel.findOne({ where: { isActive: true } });
-    res.json(activePlan || { name: 'Pro Plan', price: 0 });
+    const plans = await PlanModel.findAll({ order: [['createdAt', 'DESC']] });
+    res.json(plans);
   } catch (error) {
-    console.error('Get Plan Error:', error);
-    res.status(500).json({ message: 'Server Error fetching plan' });
+    console.error('Get Plans Error:', error);
+    res.status(500).json({ message: 'Server Error fetching plans' });
   }
 };
 
-// @desc    Update Subscription Plan (Price)
-// @route   POST /api/admin/plan
+// @desc    Create New Subscription Plan
+// @route   POST /api/admin/plans
 // @access  Private/Admin
-const updatePlan = async (req, res) => {
+const createPlan = async (req, res) => {
   try {
-    const { name, price } = req.body;
+    const { name, price, features } = req.body;
     
     if (!name || !price) {
       return res.status(400).json({ message: 'Please provide name and price' });
     }
 
-    // 1. We first create a new Product (or use existing) and a new Price in Stripe
+    console.log('Syncing new plan with Stripe:', { name, price });
+
+    // 1. Create a new Product and Price in Stripe
     const stripeProduct = await stripe.products.create({
       name: name,
-      description: 'FBA SaaS Platform Access',
+      description: 'FBA SaaS Platform Access Tier',
     });
 
     const stripePrice = await stripe.prices.create({
       product: stripeProduct.id,
-      unit_amount: Math.round(parseFloat(price) * 100), // Stripe expects cents
+      unit_amount: Math.round(parseFloat(price) * 100),
       currency: 'usd',
       recurring: { interval: 'month' },
     });
 
-    // 2. Mark old plans as inactive in DB
-    await PlanModel.update({ isActive: false }, { where: { isActive: true } });
-
-    // 3. Create the new Plan in DB
+    // 2. Create the new Plan in DB (Keep others active)
     const newPlan = await PlanModel.create({
       name,
       price,
+      features: features || [],
       stripeProductId: stripeProduct.id,
       stripePriceId: stripePrice.id,
       isActive: true,
     });
 
-    res.status(201).json({ message: 'Plan updated successfully', plan: newPlan });
+    res.status(201).json({ message: 'New tier deployed successfully', plan: newPlan });
   } catch (error) {
-    console.error('Update Plan Error:', error);
-    res.status(500).json({ message: error.message || 'Server Error updating plan' });
+    console.error('Create Plan Error:', error);
+    res.status(500).json({ 
+      message: error.message || 'Server Error creating plan',
+      details: error.raw?.message || null
+    });
+  }
+};
+
+// @desc    Toggle Plan Status
+// @route   PUT /api/admin/plans/:id/toggle
+// @access  Private/Admin
+const togglePlanStatus = async (req, res) => {
+  try {
+    const plan = await PlanModel.findByPk(req.params.id);
+    if (!plan) return res.status(404).json({ message: 'Plan not found' });
+    
+    plan.isActive = !plan.isActive;
+    await plan.save();
+    
+    res.json({ message: `Plan ${plan.isActive ? 'activated' : 'deactivated'}`, plan });
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error toggling status' });
   }
 };
 
 module.exports = {
   getAdminStats,
   getAllUsers,
-  getCurrentPlan,
-  updatePlan
+  getAllPlans,
+  createPlan,
+  togglePlanStatus
 };
