@@ -1,0 +1,137 @@
+name: Build & Deploy othershand_server (Development)
+
+on:
+  push:
+    branches: [ "develop" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Debug Docker Hub credentials
+        run: |
+          echo "Checking Docker Hub credentials..."
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ]; then echo "DOCKER_USERNAME is set"; else echo "DOCKER_USERNAME is missing!"; fi
+          if [ -n "${{ secrets.DOCKER_PASSWORD }}" ]; then echo "DOCKER_PASSWORD is set"; else echo "DOCKER_PASSWORD is missing!"; fi
+          echo "Docker Username: ${{ secrets.DOCKER_USERNAME }}"
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Prepare environment file from production config
+        run: |
+          if [ -f .env.prd ]; then
+            echo "Removing existing .env file if present..."
+            rm -f .env
+            echo "Creating fresh .env from .env.prd"
+            cp .env.prd .env
+            echo "✓ .env file created successfully"
+          else
+            echo "ERROR: .env.prd file not found!"
+            exit 1
+          fi
+
+      - name: Build Docker image
+        run: |
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/othershand_server-dev:dev"
+          echo "Building $IMAGE"
+          docker build -t "$IMAGE" .
+          echo "✓ Docker image built successfully"
+
+      - name: Push Docker image to Docker Hub
+        run: |
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/othershand_server-dev:dev"
+          echo "Pushing $IMAGE"
+          docker push "$IMAGE"
+          echo "✓ Docker image pushed successfully"
+
+      - name: Debug EC2 credentials
+        run: |
+          echo "Checking EC2 credentials..."
+          if [ -n "${{ secrets.SERVER_HOST }}" ]; then echo "SERVER_HOST is set"; else echo "SERVER_HOST is missing!"; fi
+          if [ -n "${{ secrets.SERVER_USER }}" ]; then echo "SERVER_USER is set"; else echo "SERVER_USER is missing!"; fi
+          if [ -n "${{ secrets.SERVER_SSH_KEY }}" ]; then echo "SERVER_SSH_KEY is set"; else echo "SERVER_SSH_KEY is missing!"; fi
+          echo "EC2 Host: ${{ secrets.SERVER_HOST }}"
+          echo "EC2 User: ${{ secrets.SERVER_USER }}"
+
+      - name: Debug EC2 SSH access
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            echo "SSH access successful."
+            echo "Connected user: $(whoami)"
+            echo "Connected host: $(hostname)"
+            uname -a
+
+      - name: Deploy on EC2 (Development)
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          script: |
+            echo "Starting deployment on EC2..."
+            set -e
+
+            # ── Pull & run container ───────────────────────────────────────
+            IMAGE="${{ secrets.DOCKER_USERNAME }}/othershand_server-dev:dev"
+            NAME="othershand_server-dev"
+
+            echo "Pulling latest image..."
+            sudo docker pull "$IMAGE"
+
+            echo "Stopping old container (if any)..."
+            sudo docker stop "$NAME" || true
+            sudo docker rm   "$NAME" || true
+
+            echo "Starting new container..."
+            sudo docker run -d \
+              --name "$NAME" \
+              -p 8088:8088 \
+              -e PORT=8088 \
+              -e TZ=Asia/Dhaka \
+              -v /etc/localtime:/etc/localtime:ro \
+              --restart unless-stopped \
+              "$IMAGE"
+
+            # ── Open firewall port ─────────────────────────────────────────
+            if command -v ufw >/dev/null 2>&1; then
+              sudo ufw allow 8088/tcp || true
+            fi
+
+            echo "✓ Deployed $IMAGE as '$NAME' on port 8088"
+
+      - name: Verify on EC2 (Development)
+        uses: appleboy/ssh-action@v0.1.10
+        if: success()
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            echo "── Containers ──────────────────────────────────────────"
+            sudo docker ps -a | grep othershand_server-dev || true
+
+            echo "── Logs (last 50 lines) ────────────────────────────────"
+            sudo docker logs --tail=50 othershand_server-dev || true
+
+            echo "── Health check ────────────────────────────────────────"
+            curl -sf http://localhost:8088/check/health \
+              && echo "✓ Health OK" \
+              || echo "⚠ Health endpoint not responding"
