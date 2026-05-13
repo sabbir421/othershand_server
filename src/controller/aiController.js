@@ -75,23 +75,25 @@ const generateListing = async (req, res) => {
     const userContent = [
       { 
         type: 'text', 
-        text: `You are a world-class Amazon FBA Copywriting Expert. 
-               Generate an elite, high-converting, SEO-optimized Amazon listing.
+                text: `You are an elite Amazon FBA Conversion & SEO Copywriter. 
+               Generate a premium, high-converting Amazon listing that is meaningful, informative, and visually attractive.
                
                ${advancedContext}
                
                PRODUCT CORE DATA: "${productDetails || 'Analyze images for details'}"
                
-               STRICT REQUIREMENTS:
-               1. TITLE: Maximum 200 characters. SEO-rich, includes brand potential.
-               2. BULLET POINTS: EXACTLY 7 benefit-driven, high-impact points.
-               3. DESCRIPTION: Engaging narrative with HTML formatting (bold tags where appropriate).
-               4. BACKEND KEYWORDS: Array of 15 high-relevance search terms.
+               STRICT ARCHITECTURAL REQUIREMENTS:
+               1. TITLE: Max 200 chars. Must be highly SEO-optimized with primary and secondary keywords, yet attractive to human buyers. Use "pipe" separators for readability.
+               2. BULLET POINTS: Exactly 7 points. Each must start with a CAPITALIZED EMOTIONAL HOOK followed by an informative benefit. Make them meaningful and persuasive.
+               3. DESCRIPTION: A compelling, attractive brand narrative. Use HTML (<p>, <strong>, <br/>) to ensure it looks premium on Amazon. Focus on solving user pain points.
+               4. BACKEND KEYWORDS: Array of 15 unique, high-frequency search terms (Search Terms) for maximum indexing. Do NOT repeat words from the title.
 
+               GOAL: Maximum SEO ranking + High emotional appeal.
+               
                Return the response STRICTLY as a JSON object with:
-               - "title": (String, max 200 chars)
+               - "title": (String)
                - "bulletPoints": (Array of exactly 7 strings)
-               - "description": (String, HTML allowed)
+               - "description": (String, HTML formatted)
                - "keywords": (Array of 15 strings)`
       }
     ];

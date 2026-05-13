@@ -19,21 +19,41 @@ const ResearchModel = sequelize.define('Research', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  marketplace: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  seasonal: {
+    type: DataTypes.STRING,
+    defaultValue: 'no',
+  },
+  trend: {
+    type: DataTypes.STRING,
+    defaultValue: 'up',
+  },
   price: {
     type: DataTypes.DECIMAL(10, 2),
-    allowNull: false,
+    allowNull: true,
+  },
+  suggestedPrice: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+  },
+  referenceLink: {
+    type: DataTypes.STRING,
+    allowNull: true,
   },
   bsr: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
   },
   reviews: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
   },
   weight: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: true,
   },
   // AI Insights
   demandScore: {
@@ -66,6 +86,10 @@ const ResearchModel = sequelize.define('Research', {
   howToWin: {
     type: DataTypes.TEXT, // Store 3 actionable strategies as JSON string or text
   },
+  referenceProducts: {
+    type: DataTypes.JSON, // Array of up to 5 reference products with detailed metrics
+    allowNull: true,
+  }
 }, {
   timestamps: true,
 });
