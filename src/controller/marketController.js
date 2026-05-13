@@ -148,6 +148,11 @@ exports.getPurchasedProducts = async (req, res) => {
   }
 };
 
+const { Paddle, Environment } = require('@paddle/paddle-node-sdk');
+const paddle = new Paddle(process.env.PADDLE_API_KEY, {
+  environment: Environment.sandbox, // Change to Environment.production for live
+});
+
 exports.createCheckoutSession = async (req, res) => {
   try {
     const { productId } = req.body;
@@ -156,42 +161,51 @@ exports.createCheckoutSession = async (req, res) => {
     const product = await MarketProduct.findByPk(productId);
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    // 1. Create a pending record in our DB
+    const purchase = await MarketPurchase.create({
+      clientId,
+      marketProductId: productId,
+      amount: product.price,
+      status: 'pending'
+    });
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `Research Data: ${product.title}`,
-            description: `Full FBA validation report for ${product.title}`,
+    // 2. Create a Transaction in Paddle with a CUSTOM price
+    // We use a generic Product ID from env to act as the base
+    const paddleProductId = process.env.PADDLE_MARKETPLACE_PRODUCT_ID || 'pro_01hr...';
+
+    const transaction = await paddle.transactions.create({
+      items: [
+        {
+          price: {
+            description: `Research Data: ${product.title}`,
+            productId: paddleProductId,
+            unitPrice: {
+              amount: Math.round(product.price * 100).toString(),
+              currencyCode: 'USD'
+            }
           },
-          unit_amount: Math.round(product.price * 100),
-        },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      success_url: `${clientUrl}/marketplace/success?session_id={CHECKOUT_SESSION_ID}&product_id=${productId}`,
-      cancel_url: `${clientUrl}/marketplace/cancel`,
-      metadata: {
-        clientId,
-        productId,
+          quantity: 1
+        }
+      ],
+      customData: {
+        userId: String(clientId),
+        productId: String(productId),
+        purchaseId: String(purchase.id),
         type: 'market_purchase'
       }
     });
 
-    // Create a pending purchase record
-    await MarketPurchase.create({
-      clientId,
-      marketProductId: productId,
-      amount: product.price,
-      stripeSessionId: session.id,
-      status: 'pending'
-    });
+    // 3. Store the transaction ID in our pending record
+    purchase.paddleTransactionId = transaction.id;
+    await purchase.save();
 
-    res.json({ id: session.id, url: session.url });
+    res.json({ 
+      transactionId: transaction.id,
+      userId: clientId,
+      productId: product.id
+    });
   } catch (error) {
+    console.error('Market Purchase Error:', error);
     res.status(500).json({ message: error.message });
   }
 };

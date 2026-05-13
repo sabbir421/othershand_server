@@ -22,6 +22,12 @@ const PlanModel = sequelize.define('Plan', {
   stripePriceId: {
     type: DataTypes.STRING,
   },
+  paddleProductId: {
+    type: DataTypes.STRING,
+  },
+  paddlePriceId: {
+    type: DataTypes.STRING,
+  },
   isActive: {
     type: DataTypes.BOOLEAN,
     defaultValue: true,

@@ -63,34 +63,45 @@ const getAllPlans = async (req, res) => {
 // @access  Private/Admin
 const createPlan = async (req, res) => {
   try {
-    const { name, price, features } = req.body;
+    const { name, price, features, paddleProductId, paddlePriceId } = req.body;
     
     if (!name || !price) {
       return res.status(400).json({ message: 'Please provide name and price' });
     }
 
-    console.log('Syncing new plan with Stripe:', { name, price });
+    let stripeProductId = null;
+    let stripePriceId = null;
 
-    // 1. Create a new Product and Price in Stripe
-    const stripeProduct = await stripe.products.create({
-      name: name,
-      description: 'FBA SaaS Platform Access Tier',
-    });
+    try {
+      console.log('Syncing new plan with Stripe (Fallback):', { name, price });
+      // 1. Create a new Product and Price in Stripe (Fallback)
+      const stripeProduct = await stripe.products.create({
+        name: name,
+        description: 'FBA SaaS Platform Access Tier',
+      });
 
-    const stripePrice = await stripe.prices.create({
-      product: stripeProduct.id,
-      unit_amount: Math.round(parseFloat(price) * 100),
-      currency: 'usd',
-      recurring: { interval: 'month' },
-    });
+      const stripePrice = await stripe.prices.create({
+        product: stripeProduct.id,
+        unit_amount: Math.round(parseFloat(price) * 100),
+        currency: 'usd',
+        recurring: { interval: 'month' },
+      });
+      
+      stripeProductId = stripeProduct.id;
+      stripePriceId = stripePrice.id;
+    } catch (stripeErr) {
+      console.warn('Stripe sync failed, proceeding with Paddle only:', stripeErr.message);
+    }
 
-    // 2. Create the new Plan in DB (Keep others active)
+    // 2. Create the new Plan in DB
     const newPlan = await PlanModel.create({
       name,
       price,
       features: features || [],
-      stripeProductId: stripeProduct.id,
-      stripePriceId: stripePrice.id,
+      stripeProductId,
+      stripePriceId,
+      paddleProductId,
+      paddlePriceId,
       isActive: true,
     });
 

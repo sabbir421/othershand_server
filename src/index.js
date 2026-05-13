@@ -30,7 +30,10 @@ app.use((req, res, next) => {
 });
 
 const { webhook } = require('./controller/stripeController');
+const paddleController = require('./controller/paddleController');
+
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), webhook);
+app.post('/api/paddle/webhook', express.raw({ type: 'application/json' }), paddleController.webhook);
 
 app.use(express.json());
 
@@ -102,7 +105,14 @@ const startServer = async () => {
   await addColumnIfNotExists('market_products', 'vaultContents', 'JSON NULL');
   await addColumnIfNotExists('market_products', 'expectedProfitMargin', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('market_products', 'viewCount', 'INT DEFAULT 0');
+  
+  // Paddle Integration Sync
+  await addColumnIfNotExists('users', 'paddleCustomerId', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('users', 'paddleSubscriptionId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('plans', 'features', 'JSON NULL');
+  await addColumnIfNotExists('plans', 'paddleProductId', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('plans', 'paddlePriceId', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('market_purchases', 'paddleTransactionId', 'VARCHAR(255) NULL');
 
   console.log('Database sync sequence completed');
 

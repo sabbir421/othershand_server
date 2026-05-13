@@ -34,6 +34,12 @@ const UserModel = sequelize.define('User', {
   stripeSubscriptionId: {
     type: DataTypes.STRING,
   },
+  paddleCustomerId: {
+    type: DataTypes.STRING,
+  },
+  paddleSubscriptionId: {
+    type: DataTypes.STRING,
+  },
   subscriptionStatus: {
     type: DataTypes.STRING,
     defaultValue: 'inactive', // inactive, active, past_due, canceled

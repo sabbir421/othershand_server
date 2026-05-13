@@ -22,6 +22,9 @@ const MarketPurchaseModel = sequelize.define('MarketPurchase', {
   stripeSessionId: {
     type: DataTypes.STRING,
   },
+  paddleTransactionId: {
+    type: DataTypes.STRING,
+  },
   status: {
     type: DataTypes.ENUM('pending', 'completed', 'failed'),
     defaultValue: 'pending',
