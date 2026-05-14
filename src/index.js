@@ -32,8 +32,8 @@ app.use((req, res, next) => {
 const { webhook } = require('./controller/stripeController');
 const paddleController = require('./controller/paddleController');
 
-app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), webhook);
-app.post('/api/paddle/webhook', express.raw({ type: 'application/json' }), paddleController.webhook);
+app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), webhook);
+app.post('/api/paddle/webhook', express.raw({ type: '*/*' }), paddleController.webhook);
 
 app.use(express.json());
 

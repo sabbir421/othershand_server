@@ -26,16 +26,20 @@ const webhook = async (req, res) => {
 
     let event;
     try {
-      // The Paddle SDK unmarshal can throw if signature is invalid
-      event = paddle.webhooks.unmarshal(rawBody, secret, signature);
+      // The Paddle SDK unmarshal can be async depending on version, 
+      // adding await ensures we catch verification failures correctly.
+      event = await paddle.webhooks.unmarshal(rawBody, secret, signature);
     } catch (verifyError) {
       console.error('Paddle Signature Verification Failed:', verifyError.message);
       return res.status(401).send('Signature verification failed');
     }
 
     if (event) {
-      const eventType = event.eventType || event.event_type;
-      console.log('Paddle Event Type:', eventType);
+      // Handle both SDK versions and raw structures
+      const eventType = event.eventType || event.event_type || (event.data ? event.data.event_type : null);
+      console.log('--- Paddle Event Decoded ---');
+      console.log('Event Type:', eventType);
+      console.log('Event Data Keys:', Object.keys(event.data || {}));
 
       switch (eventType) {
         case 'subscription.created':
@@ -69,16 +73,21 @@ const webhook = async (req, res) => {
           const transaction = event.data;
           // Handle Marketplace Purchase
           if (transaction.customData?.type === 'market_purchase') {
-            const { productId, userId } = transaction.customData;
+            const { productId, userId, purchaseId } = transaction.customData;
             
-            // Finalize the purchase in our database
+            // Finalize the EXACT purchase record using purchaseId
             const MarketPurchase = require('../models/MarketPurchaseModel');
+            
+            const updateCriteria = purchaseId 
+              ? { id: purchaseId } 
+              : { clientId: userId, marketProductId: productId, status: 'pending' };
+
             await MarketPurchase.update(
               { status: 'completed', paddleTransactionId: transaction.id },
-              { where: { clientId: userId, marketProductId: productId, status: 'pending' } }
+              { where: updateCriteria }
             );
             
-            console.log(`Marketplace Purchase Completed: User ${userId} bought Product ${productId}`);
+            console.log(`Marketplace Purchase Completed: Record ${purchaseId || 'unknown'} fulfilled for User ${userId}`);
           }
           break;
 
