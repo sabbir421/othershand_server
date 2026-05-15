@@ -1,3 +1,5 @@
+const fbaFeeService = require('../services/fbaFeeService');
+
 // @desc    Calculate product profitability
 // @route   POST /api/profit/calculate
 // @access  Public
@@ -28,6 +30,34 @@ const calculateProfit = (req, res) => {
   }
 };
 
+// @desc    Advanced FBA Fee calculation (Rule-based)
+// @route   POST /api/profit/calculate-fba
+// @access  Public
+const calculateDetailedFbaFees = async (req, res) => {
+  try {
+    const { price, cogs, weight, dimensions, category, marketplace } = req.body;
+
+    if (!price || !cogs || !weight || !dimensions || !category) {
+      return res.status(400).json({ message: 'Missing required parameters for FBA calculation' });
+    }
+
+    const result = await fbaFeeService.calculateFees({
+      price,
+      cogs,
+      weight,
+      dimensions,
+      categoryName: category,
+      marketplace: marketplace || 'US'
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('FBA Calculation Error:', error);
+    res.status(500).json({ message: error.message || 'Server Error' });
+  }
+};
+
 module.exports = {
-  calculateProfit
+  calculateProfit,
+  calculateDetailedFbaFees
 };

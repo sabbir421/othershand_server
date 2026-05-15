@@ -44,6 +44,15 @@ app.get('/', (req, res) => {
   res.send('FBA SaaS API is running');
 });
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('Global Error:', err);
+  res.status(err.status || 500).json({
+    message: err.message || 'An unexpected error occurred',
+    error: process.env.NODE_ENV === 'development' ? err : {}
+  });
+});
+
 const PORT = process.env.PORT || 8000;
 
 const addColumnIfNotExists = async (tableName, columnName, definition) => {
@@ -94,6 +103,28 @@ const startServer = async () => {
   await addColumnIfNotExists('supplier_quotes', 'finalUnitPriceAir', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('supplier_quotes', 'finalUnitPriceSea', 'DECIMAL(10, 2) NULL');
 
+  // Manual Sync for Research (pluralized as 'Researches' or 'Research' depending on config)
+  const researchTables = ['Researches', 'Research'];
+  for (const table of researchTables) {
+    await addColumnIfNotExists(table, 'productKeyword', 'VARCHAR(255) NULL');
+    await addColumnIfNotExists(table, 'marketplace', 'VARCHAR(255) NULL');
+    await addColumnIfNotExists(table, 'seasonal', 'VARCHAR(255) DEFAULT "no"');
+    await addColumnIfNotExists(table, 'trend', 'VARCHAR(255) DEFAULT "up"');
+    await addColumnIfNotExists(table, 'suggestedPrice', 'DECIMAL(10, 2) NULL');
+    await addColumnIfNotExists(table, 'referenceLink', 'VARCHAR(255) NULL');
+    await addColumnIfNotExists(table, 'demandScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'competitionScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'profitabilityScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'riskScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'opportunityScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'competitionLevel', 'VARCHAR(255) NULL');
+    await addColumnIfNotExists(table, 'riskLevel', 'VARCHAR(255) NULL');
+    await addColumnIfNotExists(table, 'verdict', 'VARCHAR(255) NULL');
+    await addColumnIfNotExists(table, 'reasoning', 'TEXT NULL');
+    await addColumnIfNotExists(table, 'howToWin', 'TEXT NULL');
+    await addColumnIfNotExists(table, 'referenceProducts', 'JSON NULL');
+  }
+
   // Market Products expansion
   try {
     await sequelize.query(`ALTER TABLE \`market_products\` MODIFY COLUMN \`mainImage\` TEXT`);
@@ -113,6 +144,49 @@ const startServer = async () => {
   await addColumnIfNotExists('plans', 'paddleProductId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('plans', 'paddlePriceId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('market_purchases', 'paddleTransactionId', 'VARCHAR(255) NULL');
+
+  // FBA Fee Engine Seed Data
+  const FbaCategory = require('./models/FbaCategory');
+  const FbaSizeTier = require('./models/FbaSizeTier');
+  const FbaStorageFee = require('./models/FbaStorageFee');
+
+  try {
+    const categoryCount = await FbaCategory.count();
+    if (categoryCount === 0) {
+      await FbaCategory.bulkCreate([
+        { name: 'Home & Kitchen', referralFeePercentage: 15.00, minReferralFee: 0.30 },
+        { name: 'Electronics', referralFeePercentage: 8.00, minReferralFee: 0.30 },
+        { name: 'Apparel', referralFeePercentage: 17.00, minReferralFee: 0.30 },
+        { name: 'Beauty', referralFeePercentage: 15.00, minReferralFee: 0.30 },
+        { name: 'Toys & Games', referralFeePercentage: 15.00, minReferralFee: 0.30 }
+      ]);
+      console.log('Seeded FBA categories');
+    }
+
+    const tierCount = await FbaSizeTier.count();
+    if (tierCount === 0) {
+      await FbaSizeTier.bulkCreate([
+        { name: 'Small Standard', maxLength: 15, maxWidth: 12, maxHeight: 0.75, maxWeight: 1, baseFee: 3.22 },
+        { name: 'Large Standard (< 0.5lb)', maxLength: 18, maxWidth: 14, maxHeight: 8, maxWeight: 0.5, baseFee: 3.86 },
+        { name: 'Large Standard (0.5 - 1lb)', maxLength: 18, maxWidth: 14, maxHeight: 8, maxWeight: 1, baseFee: 4.08 },
+        { name: 'Large Standard (1 - 2lb)', maxLength: 18, maxWidth: 14, maxHeight: 8, maxWeight: 2, baseFee: 4.75 },
+        { name: 'Large Standard (2 - 3lb)', maxLength: 18, maxWidth: 14, maxHeight: 8, maxWeight: 3, baseFee: 5.40 },
+        { name: 'Large Bulky', maxLength: 108, maxWidth: 108, maxHeight: 108, maxWeight: 50, baseFee: 9.73, perLbSurcharge: 0.42, surchargeThresholdWeight: 1 }
+      ]);
+      console.log('Seeded FBA size tiers');
+    }
+
+    const storageCount = await FbaStorageFee.count();
+    if (storageCount === 0) {
+      await FbaStorageFee.bulkCreate([
+        { monthRange: 'Jan-Sep', ratePerCubicFoot: 0.78 },
+        { monthRange: 'Oct-Dec', ratePerCubicFoot: 2.40 }
+      ]);
+      console.log('Seeded FBA storage fees');
+    }
+  } catch (err) {
+    console.error('Error seeding FBA data:', err.message);
+  }
 
   console.log('Database sync sequence completed');
 

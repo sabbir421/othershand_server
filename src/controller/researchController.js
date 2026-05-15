@@ -132,7 +132,10 @@ const getAllResearch = async (req, res) => {
     res.json(research);
   } catch (error) {
     console.error('Get Research Error:', error);
-    res.status(500).json({ message: 'Server Error fetching research' });
+    res.status(500).json({ 
+      message: 'Server Error fetching research',
+      error: error.message 
+    });
   }
 };
 

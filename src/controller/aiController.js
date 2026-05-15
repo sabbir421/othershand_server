@@ -83,17 +83,32 @@ const generateListing = async (req, res) => {
                PRODUCT CORE DATA: "${productDetails || 'Analyze images for details'}"
                
                STRICT ARCHITECTURAL REQUIREMENTS:
-               1. TITLE: Max 200 chars. Must be highly SEO-optimized with primary and secondary keywords, yet attractive to human buyers. Use "pipe" separators for readability.
-               2. BULLET POINTS: Exactly 7 points. Each must start with a CAPITALIZED EMOTIONAL HOOK followed by an informative benefit. Make them meaningful and persuasive.
-               3. DESCRIPTION: A compelling, attractive brand narrative. Use HTML (<p>, <strong>, <br/>) to ensure it looks premium on Amazon. Focus on solving user pain points.
+               1. TITLE: STRICTLY between 185 and 200 characters. Must be highly SEO-optimized with primary and secondary keywords, yet attractive to human buyers. Use "pipe" separators for readability. Do NOT exceed 200 characters but aim to get as close to 200 as possible without going under 185.
+               2. BULLET POINTS: Generate EXACTLY 8 bullet points. 
+                  - Each bullet point MUST be between 220 and 250 characters.
+                  - Start each bullet point with a short UPPERCASE FEATURE HEADING followed by a colon.
+                  - Focus on customer benefits and emotional value, not just technical features.
+                  - Naturally include relevant SEO keywords from the context provided.
+                  - Do NOT use emojis.
+                  - Do NOT use promotional claims like "Best Seller" or "Top Rated".
+                  - Do NOT include pricing, shipping, or seller information.
+               3. DESCRIPTION: Write a compelling brand narrative between 1,500 and 2,000 characters.
+                  - Use short paragraphs for maximum readability.
+                  - Focus on customer benefits, real-world use cases, and how the product solves specific problems.
+                  - Highlight materials, durability, comfort, and included accessories.
+                  - Mention gift suitability where applicable.
+                  - Do NOT use emojis.
+                  - Do NOT use HTML tags (Plain text only).
+                  - Do NOT use promotional claims like "Best Seller" or "Guaranteed".
+                  - Do NOT include pricing, shipping, or seller information.
                4. BACKEND KEYWORDS: Array of 15 unique, high-frequency search terms (Search Terms) for maximum indexing. Do NOT repeat words from the title.
 
-               GOAL: Maximum SEO ranking + High emotional appeal.
+               GOAL: Maximum SEO ranking + High emotional appeal. Ensure all character limits are strictly respected.
                
                Return the response STRICTLY as a JSON object with:
                - "title": (String)
-               - "bulletPoints": (Array of exactly 7 strings)
-               - "description": (String, HTML formatted)
+               - "bulletPoints": (Array of exactly 8 strings)
+               - "description": (String, Plain text)
                - "keywords": (Array of 15 strings)`
       }
     ];
