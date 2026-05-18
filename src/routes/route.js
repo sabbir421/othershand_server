@@ -15,6 +15,8 @@ const sellerRoutes = require('./sellerRoutes');
 const marketRoutes = require('./marketRoutes');
 const publicRoutes = require('./publicRoutes');
 const feedbackRoutes = require('./feedbackRoutes');
+const payoutRoutes = require('./payoutRoutes');
+const reviewRoutes = require('./reviewRoutes');
 
 const router = express.Router();
 
@@ -34,5 +36,7 @@ router.use('/seller', sellerRoutes);
 router.use('/marketplace', marketRoutes);
 router.use('/public', publicRoutes);
 router.use('/feedback', feedbackRoutes);
+router.use('/payouts', payoutRoutes);
+router.use('/reviews', reviewRoutes);
 
 module.exports = router;

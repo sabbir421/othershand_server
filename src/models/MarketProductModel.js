@@ -24,8 +24,8 @@ const MarketProductModel = sequelize.define('MarketProduct', {
     allowNull: false,
   },
   status: {
-    type: DataTypes.ENUM('active', 'sold', 'hidden'),
-    defaultValue: 'active',
+    type: DataTypes.ENUM('pending', 'active', 'rejected', 'sold', 'hidden'),
+    defaultValue: 'pending',
   },
   // We'll store the 5 references as a JSON array for flexibility, 
   // or use a separate table if complex querying is needed.

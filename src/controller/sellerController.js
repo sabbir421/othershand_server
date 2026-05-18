@@ -114,3 +114,60 @@ exports.fulfillRequest = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.getProfile = async (req, res) => {
+  try {
+    const seller = await Seller.findByPk(req.user.id, {
+      attributes: { exclude: ['password', 'resetOtp', 'resetOtpExpires'] }
+    });
+    if (!seller) return res.status(404).json({ message: 'Seller not found' });
+    res.json(seller);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const { firstName, country, phone, experienceYears } = req.body;
+    const seller = await Seller.findByPk(req.user.id);
+    if (!seller) return res.status(404).json({ message: 'Seller not found' });
+
+    if (firstName !== undefined && firstName !== '') seller.firstName = firstName;
+    if (country !== undefined && country !== '') seller.country = country;
+    if (experienceYears !== undefined) seller.experienceYears = experienceYears;
+
+    await seller.save();
+    
+    // Return updated profile without sensitive data
+    const updatedSeller = seller.toJSON();
+    delete updatedSeller.password;
+    delete updatedSeller.resetOtp;
+    delete updatedSeller.resetOtpExpires;
+
+    res.json({ message: 'Profile updated successfully', seller: updatedSeller });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updatePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const seller = await Seller.findByPk(req.user.id);
+    if (!seller) return res.status(404).json({ message: 'Seller not found' });
+
+    // Verify current password
+    if (!(await seller.comparePassword(currentPassword))) {
+      return res.status(401).json({ message: 'Incorrect current password' });
+    }
+
+    // Set new password (the model hook will hash it)
+    seller.password = newPassword;
+    await seller.save();
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

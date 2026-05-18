@@ -16,6 +16,8 @@ require('./models/QuotationFolderModel');
 require('./models/SellerModel');
 require('./models/MarketProductModel');
 require('./models/MarketPurchaseModel');
+require('./models/PayoutModel');
+require('./models/ReviewModel');
 
 const app = express();
 app.use(cors({
@@ -140,10 +142,17 @@ const startServer = async () => {
   // Paddle Integration Sync
   await addColumnIfNotExists('users', 'paddleCustomerId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('users', 'paddleSubscriptionId', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('users', 'resetOtp', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('users', 'resetOtpExpires', 'DATETIME NULL');
+  
+  await addColumnIfNotExists('sellers', 'resetOtp', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('sellers', 'resetOtpExpires', 'DATETIME NULL');
   await addColumnIfNotExists('plans', 'features', 'JSON NULL');
   await addColumnIfNotExists('plans', 'paddleProductId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('plans', 'paddlePriceId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('market_purchases', 'paddleTransactionId', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('market_purchases', 'sellerEarnings', 'DECIMAL(10, 2) NULL');
+  await addColumnIfNotExists('market_purchases', 'platformFee', 'DECIMAL(10, 2) NULL');
 
   // FBA Fee Engine Seed Data
   const FbaCategory = require('./models/FbaCategory');

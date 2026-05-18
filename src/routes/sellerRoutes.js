@@ -11,4 +11,8 @@ router.get('/requests', protect, sellerController.getAvailableRequests);
 router.post('/confirm/:id', protect, sellerController.confirmRequest);
 router.post('/fulfill', protect, sellerController.fulfillRequest);
 
+router.get('/profile', protect, sellerController.getProfile);
+router.put('/profile', protect, sellerController.updateProfile);
+router.put('/update-password', protect, sellerController.updatePassword);
+
 module.exports = router;

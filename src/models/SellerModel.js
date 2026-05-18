@@ -38,6 +38,12 @@ const SellerModel = sequelize.define('Seller', {
     type: DataTypes.ENUM('active', 'inactive', 'pending'),
     defaultValue: 'active',
   },
+  resetOtp: {
+    type: DataTypes.STRING,
+  },
+  resetOtpExpires: {
+    type: DataTypes.DATE,
+  },
 }, {
   tableName: 'sellers',
   timestamps: true,

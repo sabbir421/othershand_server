@@ -1,6 +1,11 @@
 const UserModel = require('../models/UserModel');
 const PlanModel = require('../models/PlanModel');
+const MarketProductModel = require('../models/MarketProductModel');
+const MarketPurchaseModel = require('../models/MarketPurchaseModel');
+const SellerModel = require('../models/SellerModel');
+const PayoutModel = require('../models/PayoutModel');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key_to_prevent_startup_crash');
+const { sequelize } = require('../config/database');
 
 // @desc    Get Admin Statistics
 // @route   GET /api/admin/stats
@@ -8,6 +13,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy
 const getAdminStats = async (req, res) => {
   try {
     const totalUsers = await UserModel.count({ where: { role: 'user' } });
+    
     const totalSubscribers = await UserModel.count({ 
       where: { role: 'user', subscriptionStatus: 'active' } 
     });
@@ -15,13 +21,25 @@ const getAdminStats = async (req, res) => {
     const activePlan = await PlanModel.findOne({ where: { isActive: true } });
     const planPrice = activePlan ? parseFloat(activePlan.price) : 0;
     
-    // Monthly Recurring Revenue estimate based on active subscribers
     const totalRevenue = totalSubscribers * planPrice;
+
+    const marketPurchases = await MarketPurchaseModel.findAll({
+      where: { status: 'completed' }
+    });
+
+    const totalMarketRevenue = marketPurchases.reduce((acc, curr) => acc + parseFloat(curr.platformFee || (curr.amount * 0.4)), 0);
+    const totalSellerPayoutsEarned = marketPurchases.reduce((acc, curr) => acc + parseFloat(curr.sellerEarnings || (curr.amount * 0.6)), 0);
+
+    const pendingPayouts = await PayoutModel.count({ where: { status: 'pending' } });
+    const processingPayouts = await PayoutModel.count({ where: { status: 'processing' } });
 
     res.json({
       totalUsers,
       totalSubscribers,
-      totalRevenue
+      totalRevenue,
+      totalMarketRevenue,
+      totalSellerPayouts: totalSellerPayoutsEarned,
+      pendingPayoutRequests: pendingPayouts + processingPayouts
     });
   } catch (error) {
     console.error('Admin Stats Error:', error);
@@ -132,10 +150,50 @@ const togglePlanStatus = async (req, res) => {
   }
 };
 
+// @desc    Get All Market Products
+// @route   GET /api/admin/market-products
+// @access  Private/Admin
+const getMarketProducts = async (req, res) => {
+  try {
+    const products = await MarketProductModel.findAll({
+      order: [['createdAt', 'DESC']]
+    });
+    res.json(products);
+  } catch (error) {
+    console.error('Get Market Products Error:', error);
+    res.status(500).json({ message: 'Server Error fetching market products' });
+  }
+};
+
+// @desc    Update Market Product Status
+// @route   PUT /api/admin/market-products/:id/status
+// @access  Private/Admin
+const updateMarketProductStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['pending', 'active', 'rejected', 'sold', 'hidden'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const product = await MarketProductModel.findByPk(req.params.id);
+    if (!product) return res.status(404).json({ message: 'Product not found' });
+    
+    product.status = status;
+    await product.save();
+    
+    res.json({ message: `Product status updated to ${status}`, product });
+  } catch (error) {
+    console.error('Update Product Status Error:', error);
+    res.status(500).json({ message: 'Server Error updating product status' });
+  }
+};
+
 module.exports = {
   getAdminStats,
   getAllUsers,
   getAllPlans,
   createPlan,
-  togglePlanStatus
+  togglePlanStatus,
+  getMarketProducts,
+  updateMarketProductStatus
 };

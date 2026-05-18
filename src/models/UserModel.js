@@ -44,6 +44,12 @@ const UserModel = sequelize.define('User', {
     type: DataTypes.STRING,
     defaultValue: 'inactive', // inactive, active, past_due, canceled
   },
+  resetOtp: {
+    type: DataTypes.STRING,
+  },
+  resetOtpExpires: {
+    type: DataTypes.DATE,
+  },
 }, {
   tableName: 'users',
   timestamps: true,

@@ -16,5 +16,6 @@ router.post('/post', protect, marketController.createProduct);
 router.get('/stats', protect, marketController.getSellerStats);
 router.post('/click/:id', marketController.incrementView);
 router.delete('/delete/:id', protect, marketController.deleteProduct);
+router.get('/sales-history', protect, marketController.getSellerSalesHistory);
 
 module.exports = router;

@@ -1,6 +1,7 @@
 const MarketProduct = require('../models/MarketProductModel');
 const MarketPurchase = require('../models/MarketPurchaseModel');
 const Seller = require('../models/SellerModel');
+const { Op } = require('sequelize');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy');
 
 exports.createProduct = async (req, res) => {
@@ -34,9 +35,27 @@ exports.createProduct = async (req, res) => {
 
 exports.getAllProducts = async (req, res) => {
   try {
+    const clientId = req.user?.id;
+    
+    // Find all products the client has already purchased
+    let purchasedProductIds = [];
+    if (clientId) {
+      const purchases = await MarketPurchase.findAll({
+        where: { clientId, status: 'completed' },
+        attributes: ['marketProductId']
+      });
+      purchasedProductIds = purchases.map(p => p.marketProductId);
+    }
+
+    // Filter out the purchased products
+    const whereClause = { status: 'active' };
+    if (purchasedProductIds.length > 0) {
+      whereClause.id = { [Op.notIn]: purchasedProductIds };
+    }
+
     // Clients see limited info before purchase
     const products = await MarketProduct.findAll({
-      where: { status: 'active' },
+      where: whereClause,
       attributes: ['id', 'title', 'category', 'price', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'mainImage', 'createdAt'],
       order: [['createdAt', 'DESC']]
     });
@@ -108,7 +127,8 @@ exports.getProductDetails = async (req, res) => {
         expectedProfitMargin: productJson.expectedProfitMargin,
         status: productJson.status,
         createdAt: productJson.createdAt,
-        updatedAt: productJson.updatedAt
+        updatedAt: productJson.updatedAt,
+        sellerId: productJson.sellerId
       };
 
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -161,11 +181,16 @@ exports.createCheckoutSession = async (req, res) => {
     const product = await MarketProduct.findByPk(productId);
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
+    const sellerEarnings = (product.price * 0.60).toFixed(2);
+    const platformFee = (product.price * 0.40).toFixed(2);
+
     // 1. Create a pending record in our DB
     const purchase = await MarketPurchase.create({
       clientId,
       marketProductId: productId,
       amount: product.price,
+      sellerEarnings,
+      platformFee,
       status: 'pending'
     });
 
@@ -249,7 +274,7 @@ exports.getSellerStats = async (req, res) => {
       }
     });
 
-    const totalEarnings = sales.reduce((acc, curr) => acc + parseFloat(curr.amount), 0);
+    const totalEarnings = sales.reduce((acc, curr) => acc + parseFloat(curr.sellerEarnings || (curr.amount * 0.6)), 0);
     
     res.json({
       totalProducts: products.length,
@@ -333,6 +358,59 @@ exports.updateProduct = async (req, res) => {
 
     res.json({ message: 'Product updated successfully', product });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getSellerSalesHistory = async (req, res) => {
+  try {
+    const sellerId = req.user.id;
+    // Get all products owned by this seller
+    const products = await MarketProduct.findAll({ where: { sellerId } });
+    if (!products.length) return res.json([]);
+    
+    // Map of product id to product object for fast lookup
+    const productMap = {};
+    products.forEach(p => {
+      productMap[p.id] = p;
+    });
+    
+    const productIds = Object.keys(productMap);
+
+    // Get all completed purchases for these products
+    const sales = await MarketPurchase.findAll({
+      where: { 
+        marketProductId: productIds,
+        status: 'completed'
+      },
+      order: [['createdAt', 'DESC']]
+    });
+
+    // Enrich sales data with product details
+    const enrichedSales = sales.map(sale => {
+      const product = productMap[sale.marketProductId];
+      return {
+        id: sale.id,
+        amount: sale.amount,
+        sellerEarnings: sale.sellerEarnings || (sale.amount * 0.6).toFixed(2),
+        platformFee: sale.platformFee || (sale.amount * 0.4).toFixed(2),
+        status: sale.status,
+        createdAt: sale.createdAt,
+        paddleTransactionId: sale.paddleTransactionId,
+        stripeSessionId: sale.stripeSessionId,
+        product: {
+          id: product.id,
+          title: product.title,
+          category: product.category,
+          mainImage: product.mainImage
+        },
+        clientId: sale.clientId // Included for reference if needed
+      };
+    });
+
+    res.json(enrichedSales);
+  } catch (error) {
+    console.error('getSellerSalesHistory Error:', error);
     res.status(500).json({ message: error.message });
   }
 };
