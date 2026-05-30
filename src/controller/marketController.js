@@ -56,11 +56,16 @@ exports.getAllProducts = async (req, res) => {
     // Clients see limited info before purchase
     const products = await MarketProduct.findAll({
       where: whereClause,
-      attributes: ['id', 'title', 'category', 'price', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'mainImage', 'createdAt'],
+      attributes: ['id', 'price', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'createdAt'],
       order: [['createdAt', 'DESC']]
     });
     const anonymizedProducts = products.map(p => ({
-      ...p.toJSON(),
+      id: p.id,
+      price: p.price,
+      avgBsr: p.avgBsr,
+      avgRoi: p.avgRoi,
+      monthlySalesEst: p.monthlySalesEst,
+      createdAt: p.createdAt,
       title: `CONFIDENTIAL BLUEPRINT #${p.id.toString().padStart(4, '0')}`,
       mainImage: 'REDACTED',
       category: 'Verified Asset'

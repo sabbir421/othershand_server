@@ -8,7 +8,7 @@ const FeedbackModel = sequelize.define('Feedback', {
     primaryKey: true,
   },
   userId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
   },
   userName: {

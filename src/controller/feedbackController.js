@@ -12,8 +12,8 @@ const submitFeedback = async (req, res) => {
     }
 
     const feedback = await FeedbackModel.create({
-      userId: req.user.id,
-      userName: req.user.name,
+      userId: String(req.user.id),
+      userName: req.user.name || req.user.firstName || 'Anonymous Seller',
       type,
       rating,
       subject,
@@ -64,8 +64,25 @@ const updateFeedbackStatus = async (req, res) => {
   }
 };
 
+// @desc    Get Logged-in Seller's Feedbacks
+// @route   GET /api/feedback/my
+// @access  Private
+const getMyFeedbacks = async (req, res) => {
+  try {
+    const feedbacks = await FeedbackModel.findAll({
+      where: { userId: req.user.id },
+      order: [['createdAt', 'DESC']]
+    });
+    res.json(feedbacks);
+  } catch (error) {
+    console.error('Get My Feedbacks Error:', error);
+    res.status(500).json({ message: 'Server Error fetching my feedbacks' });
+  }
+};
+
 module.exports = {
   submitFeedback,
   getAllFeedbacks,
-  updateFeedbackStatus
+  updateFeedbackStatus,
+  getMyFeedbacks
 };
