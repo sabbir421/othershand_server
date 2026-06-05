@@ -101,8 +101,8 @@ jobs:
             echo "Starting new container..."
             sudo docker run -d \
               --name "$NAME" \
-              -p 8088:8088 \
-              -e PORT=8088 \
+              -p 8086:8086 \
+              -e PORT=8086 \
               -e TZ=Asia/Dhaka \
               -v /etc/localtime:/etc/localtime:ro \
               --restart unless-stopped \
@@ -110,10 +110,10 @@ jobs:
 
             # ── Open firewall port ─────────────────────────────────────────
             if command -v ufw >/dev/null 2>&1; then
-              sudo ufw allow 8088/tcp || true
+              sudo ufw allow 8086/tcp || true
             fi
 
-            echo "✓ Deployed $IMAGE as '$NAME' on port 8088"
+            echo "✓ Deployed $IMAGE as '$NAME' on port 8086"
 
       - name: Verify on EC2 (Development)
         uses: appleboy/ssh-action@v0.1.10
@@ -132,6 +132,6 @@ jobs:
             sudo docker logs --tail=50 othershand_server-dev || true
 
             echo "── Health check ────────────────────────────────────────"
-            curl -sf http://localhost:8088/check/health \
+            curl -sf http://localhost:8086/check/health \
               && echo "✓ Health OK" \
               || echo "⚠ Health endpoint not responding"
