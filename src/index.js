@@ -113,18 +113,35 @@ const startServer = async () => {
     await addColumnIfNotExists(table, 'seasonal', 'VARCHAR(255) DEFAULT "no"');
     await addColumnIfNotExists(table, 'trend', 'VARCHAR(255) DEFAULT "up"');
     await addColumnIfNotExists(table, 'suggestedPrice', 'DECIMAL(10, 2) NULL');
-    await addColumnIfNotExists(table, 'referenceLink', 'VARCHAR(255) NULL');
+    await addColumnIfNotExists(table, 'referenceLink', 'TEXT NULL');
     await addColumnIfNotExists(table, 'demandScore', 'INT NULL');
     await addColumnIfNotExists(table, 'competitionScore', 'INT NULL');
     await addColumnIfNotExists(table, 'profitabilityScore', 'INT NULL');
     await addColumnIfNotExists(table, 'riskScore', 'INT NULL');
     await addColumnIfNotExists(table, 'opportunityScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'opportunityLevel', 'VARCHAR(255) NULL');
+    await addColumnIfNotExists(table, 'reviewBarrierScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'priceOpportunityScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'logisticsScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'trendStabilityScore', 'INT NULL');
+    await addColumnIfNotExists(table, 'positiveSignals', 'JSON NULL');
+    await addColumnIfNotExists(table, 'challenges', 'JSON NULL');
+    await addColumnIfNotExists(table, 'beginnerStrategy', 'JSON NULL');
     await addColumnIfNotExists(table, 'competitionLevel', 'VARCHAR(255) NULL');
     await addColumnIfNotExists(table, 'riskLevel', 'VARCHAR(255) NULL');
     await addColumnIfNotExists(table, 'verdict', 'VARCHAR(255) NULL');
     await addColumnIfNotExists(table, 'reasoning', 'TEXT NULL');
     await addColumnIfNotExists(table, 'howToWin', 'TEXT NULL');
     await addColumnIfNotExists(table, 'referenceProducts', 'JSON NULL');
+  }
+
+  for (const table of researchTables) {
+    try {
+      await sequelize.query(`ALTER TABLE \`${table}\` MODIFY COLUMN \`referenceLink\` TEXT`);
+      console.log(`Updated ${table}.referenceLink to TEXT`);
+    } catch (err) {
+      console.error(`Error updating ${table}.referenceLink:`, err.message);
+    }
   }
 
   // Market Products expansion
@@ -139,6 +156,29 @@ const startServer = async () => {
   await addColumnIfNotExists('market_products', 'expectedProfitMargin', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('market_products', 'viewCount', 'INT DEFAULT 0');
   
+  // AI Validation expansion
+  await addColumnIfNotExists('validations', 'launchPlanId', 'INT NULL');
+  await addColumnIfNotExists('validations', 'launchSnapshot', 'JSON NULL');
+  await addColumnIfNotExists('validations', 'productKeyword', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('validations', 'category', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('validations', 'marketplace', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('validations', 'seasonal', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('validations', 'trend', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('validations', 'referenceProducts', 'JSON NULL');
+  await addColumnIfNotExists('validations', 'profitabilityScore', 'INT NULL');
+  await addColumnIfNotExists('validations', 'reviewBarrierScore', 'INT NULL');
+  await addColumnIfNotExists('validations', 'priceOpportunityScore', 'INT NULL');
+  await addColumnIfNotExists('validations', 'logisticsScore', 'INT NULL');
+  await addColumnIfNotExists('validations', 'trendStabilityScore', 'INT NULL');
+  await addColumnIfNotExists('validations', 'opportunityScore', 'INT NULL');
+  await addColumnIfNotExists('validations', 'opportunityLevel', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('validations', 'positiveSignals', 'JSON NULL');
+  await addColumnIfNotExists('validations', 'challenges', 'JSON NULL');
+  await addColumnIfNotExists('validations', 'beginnerStrategy', 'JSON NULL');
+  await addColumnIfNotExists('validations', 'competitionLevel', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('validations', 'reasoning', 'TEXT NULL');
+  await addColumnIfNotExists('validations', 'howToWin', 'TEXT NULL');
+
   // Paddle Integration Sync
   await addColumnIfNotExists('users', 'paddleCustomerId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('users', 'paddleSubscriptionId', 'VARCHAR(255) NULL');

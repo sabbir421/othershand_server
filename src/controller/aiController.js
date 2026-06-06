@@ -1,56 +1,107 @@
 const OpenAI = require('openai');
 const ValidationModel = require('../models/ValidationModel');
+const LaunchModel = require('../models/LaunchModel');
+const {
+  OPPORTUNITY_SYSTEM_PROMPT,
+  buildLaunchValidationPrompt,
+  buildLaunchSnapshot,
+  normalizeAiResult,
+} = require('../utils/opportunityAnalysis');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'dummy_api_key_to_prevent_startup_crash',
 });
 
-// @desc    Validate product idea with AI
+// @desc    Validate launch plan with AI
 // @route   POST /api/ai/validate
 // @access  Private
 const validateProduct = async (req, res) => {
   try {
-    const { idea } = req.body;
+    const { launchPlanId } = req.body;
 
-    if (!idea) {
-      return res.status(400).json({ message: 'Product idea is required' });
+    if (!launchPlanId) {
+      return res.status(400).json({ message: 'Launch plan is required' });
     }
 
-    const prompt = `
-      Analyze the following Amazon FBA product idea and provide a realistic assessment. 
-      Product Idea: "${idea}"
-      
-      Return the response STRICTLY as a JSON object with the following keys:
-      - "demandScore": (integer from 1 to 10)
-      - "competitionScore": (integer from 1 to 10, where 10 is highest competition)
-      - "riskLevel": (string, either "Low", "Medium", or "High")
-      - "verdict": (string, either "GO" or "NO-GO")
-    `;
+    const launchPlan = await LaunchModel.findOne({
+      where: { id: launchPlanId, userId: req.user.id },
+    });
+
+    if (!launchPlan) {
+      return res.status(404).json({ message: 'Launch plan not found' });
+    }
+
+    const plan = launchPlan.toJSON();
+    const prompt = buildLaunchValidationPrompt(plan);
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
+      model: process.env.OPENAI_RESPONSES_MODEL || 'gpt-4o',
+      messages: [
+        { role: 'system', content: OPPORTUNITY_SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
       response_format: { type: 'json_object' },
-      temperature: 0.7,
-      max_tokens: 1000
+      temperature: 0.6,
     });
 
-    const aiResult = JSON.parse(response.choices[0].message.content);
+    const aiResult = normalizeAiResult(JSON.parse(response.choices[0].message.content));
+    const launchSnapshot = buildLaunchSnapshot(plan);
 
-    // Save the validation history to the database
     const validation = await ValidationModel.create({
       userId: req.user.id,
-      inputIdea: idea,
-      demandScore: aiResult.demandScore,
-      competitionScore: aiResult.competitionScore,
-      riskLevel: aiResult.riskLevel,
-      verdict: aiResult.verdict
+      launchPlanId: plan.id,
+      launchSnapshot,
+      inputIdea: plan.primaryKeyword,
+      productKeyword: plan.primaryKeyword,
+      category: plan.category,
+      marketplace: 'Amazon',
+      ...aiResult,
     });
 
-    res.json(validation);
+    res.status(201).json(validation);
   } catch (error) {
     console.error('AI Validation Error:', error);
+    if (error.statusCode === 400) {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error generating AI validation' });
+  }
+};
+
+// @desc    Get all validations for user
+// @route   GET /api/ai/validate
+// @access  Private
+const getAllValidations = async (req, res) => {
+  try {
+    const validations = await ValidationModel.findAll({
+      where: { userId: req.user.id },
+      order: [['createdAt', 'DESC']],
+    });
+    res.json(validations);
+  } catch (error) {
+    console.error('Get Validations Error:', error);
+    res.status(500).json({ message: 'Error fetching validations' });
+  }
+};
+
+// @desc    Delete validation
+// @route   DELETE /api/ai/validate/:id
+// @access  Private
+const deleteValidation = async (req, res) => {
+  try {
+    const validation = await ValidationModel.findOne({
+      where: { id: req.params.id, userId: req.user.id },
+    });
+
+    if (!validation) {
+      return res.status(404).json({ message: 'Validation not found' });
+    }
+
+    await validation.destroy();
+    res.json({ message: 'Validation removed' });
+  } catch (error) {
+    console.error('Delete Validation Error:', error);
+    res.status(500).json({ message: 'Error deleting validation' });
   }
 };
 
@@ -201,6 +252,8 @@ const compareProducts = async (req, res) => {
 
 module.exports = {
   validateProduct,
+  getAllValidations,
+  deleteValidation,
   generateListing,
-  compareProducts
+  compareProducts,
 };

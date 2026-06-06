@@ -40,7 +40,7 @@ const ResearchModel = sequelize.define('Research', {
     allowNull: true,
   },
   referenceLink: {
-    type: DataTypes.STRING,
+    type: DataTypes.TEXT,
     allowNull: true,
   },
   bsr: {
@@ -71,20 +71,47 @@ const ResearchModel = sequelize.define('Research', {
   opportunityScore: {
     type: DataTypes.INTEGER,
   },
+  opportunityLevel: {
+    type: DataTypes.STRING,
+  },
+  reviewBarrierScore: {
+    type: DataTypes.INTEGER,
+  },
+  priceOpportunityScore: {
+    type: DataTypes.INTEGER,
+  },
+  logisticsScore: {
+    type: DataTypes.INTEGER,
+  },
+  trendStabilityScore: {
+    type: DataTypes.INTEGER,
+  },
+  positiveSignals: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
+  challenges: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
+  beginnerStrategy: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
   competitionLevel: {
-    type: DataTypes.STRING, // Low / Medium / High
+    type: DataTypes.STRING,
   },
   riskLevel: {
-    type: DataTypes.STRING, // Low / Medium / High
+    type: DataTypes.STRING,
   },
   verdict: {
-    type: DataTypes.STRING, // STRONG BUY / BUY / RISKY / AVOID
+    type: DataTypes.STRING,
   },
   reasoning: {
     type: DataTypes.TEXT,
   },
   howToWin: {
-    type: DataTypes.TEXT, // Store 3 actionable strategies as JSON string or text
+    type: DataTypes.TEXT,
   },
   referenceProducts: {
     type: DataTypes.JSON, // Array of up to 5 reference products with detailed metrics
