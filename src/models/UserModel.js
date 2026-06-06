@@ -50,6 +50,16 @@ const UserModel = sequelize.define('User', {
   resetOtpExpires: {
     type: DataTypes.DATE,
   },
+  isVerified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  verificationOtp: {
+    type: DataTypes.STRING,
+  },
+  verificationOtpExpires: {
+    type: DataTypes.DATE,
+  },
 }, {
   tableName: 'users',
   timestamps: true,

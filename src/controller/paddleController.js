@@ -58,6 +58,32 @@ const webhook = async (req, res) => {
               },
               { where: { id: userId } }
             );
+
+            // Send subscription welcome/activation email
+            if (eventType === 'subscription.created' || eventType === 'subscription.activated') {
+              try {
+                const user = await UserModel.findByPk(userId);
+                if (user && user.email) {
+                  const sendEmail = require('../utils/sendEmail');
+                  const emailHtml = `
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #020617; color: #fff; padding: 40px; border-radius: 16px;">
+                      <h1 style="color: #10b981; font-size: 24px; margin-bottom: 24px; font-weight: bold;">Subscription Activated!</h1>
+                      <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Hello ${user.name || 'there'},</p>
+                      <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Thank you for subscribing to FBA Pilot! Your Pro subscription has been successfully activated. You now have full, unlimited access to all of our supplier research, list generation, and validation tools.</p>
+                      <div style="background: #0f172a; padding: 20px; border-radius: 12px; margin: 24px 0; border: 1px solid #1e293b;">
+                        <p style="margin: 0; color: #fff; font-size: 14px;"><strong>Product:</strong> FBA Pilot SaaS Pro</p>
+                        <p style="margin: 8px 0 0 0; color: #fff; font-size: 14px;"><strong>Status:</strong> Active</p>
+                        <p style="margin: 8px 0 0 0; color: #fff; font-size: 14px;"><strong>Subscription ID:</strong> ${sub.id}</p>
+                      </div>
+                      <p style="color: #94a3b8; font-size: 14px; margin-top: 32px;">Happy Sourcing,<br/>The FBA Pilot Team</p>
+                    </div>
+                  `;
+                  await sendEmail(user.email, 'FBA Pilot - Subscription Activated', emailHtml);
+                }
+              } catch (emailErr) {
+                console.error('Failed to send subscription confirmation email:', emailErr);
+              }
+            }
           }
           break;
 
@@ -88,6 +114,30 @@ const webhook = async (req, res) => {
             );
             
             console.log(`Marketplace Purchase Completed: Record ${purchaseId || 'unknown'} fulfilled for User ${userId}`);
+
+            // Send marketplace purchase confirmation email
+            try {
+              const user = await UserModel.findByPk(userId);
+              if (user && user.email) {
+                const sendEmail = require('../utils/sendEmail');
+                const emailHtml = `
+                  <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #020617; color: #fff; padding: 40px; border-radius: 16px;">
+                    <h1 style="color: #818cf8; font-size: 24px; margin-bottom: 24px; font-weight: bold;">Purchase Successful!</h1>
+                    <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Hello ${user.name || 'there'},</p>
+                    <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Your payment for the marketplace item has been successfully completed. The requested resources are now unlocked and available in your FBA Pilot dashboard.</p>
+                    <div style="background: #0f172a; padding: 20px; border-radius: 12px; margin: 24px 0; border: 1px solid #1e293b;">
+                      <p style="margin: 0; color: #fff; font-size: 14px;"><strong>Transaction ID:</strong> ${transaction.id}</p>
+                      <p style="margin: 8px 0 0 0; color: #fff; font-size: 14px;"><strong>Product Type:</strong> Marketplace Resource</p>
+                      <p style="margin: 8px 0 0 0; color: #fff; font-size: 14px;"><strong>Status:</strong> Completed & Unlocked</p>
+                    </div>
+                    <p style="color: #94a3b8; font-size: 14px; margin-top: 32px;">Best regards,<br/>The FBA Pilot Team</p>
+                  </div>
+                `;
+                await sendEmail(user.email, 'FBA Pilot - Marketplace Purchase Successful', emailHtml);
+              }
+            } catch (emailErr) {
+              console.error('Failed to send marketplace purchase confirmation email:', emailErr);
+            }
           }
           break;
 

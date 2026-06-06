@@ -144,6 +144,9 @@ const startServer = async () => {
   await addColumnIfNotExists('users', 'paddleSubscriptionId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('users', 'resetOtp', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('users', 'resetOtpExpires', 'DATETIME NULL');
+  await addColumnIfNotExists('users', 'isVerified', 'TINYINT(1) DEFAULT 0');
+  await addColumnIfNotExists('users', 'verificationOtp', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('users', 'verificationOtpExpires', 'DATETIME NULL');
   
   await addColumnIfNotExists('sellers', 'resetOtp', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('sellers', 'resetOtpExpires', 'DATETIME NULL');

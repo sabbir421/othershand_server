@@ -21,21 +21,42 @@ const registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Generate 6-digit verification OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
     const user = await UserModel.create({
       name,
       email,
       password: hashedPassword,
       role: req.body.role || 'user',
+      isVerified: false,
+      verificationOtp: otp,
+      verificationOtpExpires: expires,
     });
 
     if (user) {
+      // Send Verification Email
+      try {
+        const emailHtml = `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #020617; color: #fff; padding: 40px; border-radius: 16px;">
+            <h1 style="color: #10b981; font-size: 24px; margin-bottom: 24px; font-weight: bold;">Verify Your Email Address</h1>
+            <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Welcome to FBA Pilot! Please use the verification code below to verify your email address and activate your account. This code is valid for 10 minutes.</p>
+            <div style="background: #0f172a; padding: 24px; border-radius: 12px; text-align: center; margin: 32px 0; border: 1px solid #1e293b;">
+              <span style="font-size: 32px; font-weight: 900; letter-spacing: 0.2em; color: #fff;">${otp}</span>
+            </div>
+            <p style="color: #94a3b8; font-size: 14px;">If you did not create an account, please ignore this email.</p>
+          </div>
+        `;
+        await sendEmail(email, 'FBA Pilot - Verify Your Email', emailHtml);
+      } catch (emailErr) {
+        console.error('Failed to send registration verification email:', emailErr);
+      }
+
       res.status(201).json({
-        id: user.id,
-        name: user.name,
+        message: 'Registration successful! Verification OTP sent to email.',
         email: user.email,
-        role: user.role,
-        plan: user.plan,
-        token: generateToken(user.id),
+        isVerified: false,
       });
     } else {
       res.status(400).json({ message: 'Invalid user data' });
@@ -56,6 +77,13 @@ const loginUser = async (req, res) => {
     const user = await UserModel.findOne({ where: { email } });
 
     if (user && (await bcrypt.compare(password, user.password))) {
+      if (!user.isVerified) {
+        return res.status(400).json({ 
+          message: 'Please verify your email first.', 
+          isVerified: false, 
+          email: user.email 
+        });
+      }
       res.json({
         id: user.id,
         name: user.name,
@@ -163,9 +191,98 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const verifyRegisterOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  try {
+    const user = await UserModel.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: 'Account is already verified' });
+    }
+
+    if (user.verificationOtp !== otp) {
+      return res.status(400).json({ message: 'Invalid verification code' });
+    }
+
+    if (new Date() > new Date(user.verificationOtpExpires)) {
+      return res.status(400).json({ message: 'Verification code has expired. Please request a new one.' });
+    }
+
+    user.isVerified = true;
+    user.verificationOtp = null;
+    user.verificationOtpExpires = null;
+    await user.save();
+
+    res.json({
+      message: 'Email verified successfully! You are now logged in.',
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      plan: user.plan,
+      token: generateToken(user.id),
+    });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ message: 'Failed to verify email OTP' });
+  }
+};
+
+const resendVerificationOtp = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await UserModel.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: 'Account is already verified' });
+    }
+
+    // Generate fresh OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    user.verificationOtp = otp;
+    user.verificationOtpExpires = expires;
+    await user.save();
+
+    // Send Verification Email
+    try {
+      const emailHtml = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #020617; color: #fff; padding: 40px; border-radius: 16px;">
+          <h1 style="color: #10b981; font-size: 24px; margin-bottom: 24px; font-weight: bold;">Verify Your Email Address</h1>
+          <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Please use the verification code below to verify your email address and activate your account. This code is valid for 10 minutes.</p>
+          <div style="background: #0f172a; padding: 24px; border-radius: 12px; text-align: center; margin: 32px 0; border: 1px solid #1e293b;">
+            <span style="font-size: 32px; font-weight: 900; letter-spacing: 0.2em; color: #fff;">${otp}</span>
+          </div>
+        </div>
+      `;
+      await sendEmail(email, 'FBA Pilot - Verify Your Email', emailHtml);
+    } catch (emailErr) {
+      console.error('Failed to resend registration verification email:', emailErr);
+    }
+
+    res.json({ message: 'Verification OTP resent successfully.' });
+  } catch (error) {
+    console.error('Resend verification OTP error:', error);
+    res.status(500).json({ message: 'Failed to resend verification OTP' });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  verifyRegisterOtp,
+  resendVerificationOtp
 };
