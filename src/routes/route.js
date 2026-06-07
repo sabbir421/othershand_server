@@ -17,7 +17,6 @@ const publicRoutes = require('./publicRoutes');
 const feedbackRoutes = require('./feedbackRoutes');
 const payoutRoutes = require('./payoutRoutes');
 const reviewRoutes = require('./reviewRoutes');
-
 const router = express.Router();
 
 router.use('/auth', authRoutes);
