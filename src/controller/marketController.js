@@ -3,10 +3,11 @@ const MarketPurchase = require('../models/MarketPurchaseModel');
 const Seller = require('../models/SellerModel');
 const { Op } = require('sequelize');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy');
+const { paddle } = require('../utils/paddleClient');
 
 exports.createProduct = async (req, res) => {
   try {
-    const { title, category, price, references, avgRoi, vaultContents, expectedProfitMargin } = req.body;
+    const { title, category, price, references, avgRoi, vaultContents, expectedProfitMargin, seasonal, trend } = req.body;
     const sellerId = req.user.id;
 
     if (!references || references.length < 1) {
@@ -24,7 +25,9 @@ exports.createProduct = async (req, res) => {
       monthlySalesEst: Math.floor(references.reduce((acc, curr) => acc + (parseInt(curr.lastMonthSell) || 0), 0) / references.length),
       avgRoi: avgRoi || 0,
       vaultContents: vaultContents || [],
-      expectedProfitMargin: expectedProfitMargin || 0
+      expectedProfitMargin: expectedProfitMargin || 0,
+      seasonal: seasonal || 'no',
+      trend: trend || 'up',
     });
 
     res.status(201).json({ message: 'Research data posted successfully', product });
@@ -56,7 +59,7 @@ exports.getAllProducts = async (req, res) => {
     // Clients see limited info before purchase
     const products = await MarketProduct.findAll({
       where: whereClause,
-      attributes: ['id', 'price', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'createdAt'],
+      attributes: ['id', 'price', 'category', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'seasonal', 'trend', 'createdAt'],
       order: [['createdAt', 'DESC']]
     });
     const anonymizedProducts = products.map(p => ({
@@ -65,10 +68,12 @@ exports.getAllProducts = async (req, res) => {
       avgBsr: p.avgBsr,
       avgRoi: p.avgRoi,
       monthlySalesEst: p.monthlySalesEst,
+      seasonal: p.seasonal || 'no',
+      trend: p.trend || 'up',
       createdAt: p.createdAt,
       title: `CONFIDENTIAL BLUEPRINT #${p.id.toString().padStart(4, '0')}`,
       mainImage: 'REDACTED',
-      category: 'Verified Asset'
+      category: p.category || 'Verified Asset'
     }));
     res.json(anonymizedProducts);
   } catch (error) {
@@ -117,7 +122,7 @@ exports.getProductDetails = async (req, res) => {
           retailPrice: ref.retailPrice || '0',
           category: ref.category || 'Verified Asset',
           image: 'REDACTED',
-          googleTrend: 'REDACTED',
+          productUrl: 'REDACTED',
           competitorAnalysis: 'Intelligence Locked'
         };
       });
@@ -130,6 +135,9 @@ exports.getProductDetails = async (req, res) => {
         avgRoi: productJson.avgRoi,
         monthlySalesEst: productJson.monthlySalesEst,
         expectedProfitMargin: productJson.expectedProfitMargin,
+        seasonal: productJson.seasonal || 'no',
+        trend: productJson.trend || 'up',
+        category: productJson.category || 'Verified Asset',
         status: productJson.status,
         createdAt: productJson.createdAt,
         updatedAt: productJson.updatedAt,
@@ -141,7 +149,7 @@ exports.getProductDetails = async (req, res) => {
         ...safeRootData, 
         title: `CONFIDENTIAL BLUEPRINT #${productJson.id.toString().padStart(4, '0')}`,
         mainImage: 'REDACTED',
-        category: 'Verified Asset',
+        category: productJson.category || 'Verified Asset',
         vaultContents: (productJson.vaultContents || []).map(() => 'Locked Asset Detail'),
         references: redactedReferences,
         isLocked: true 
@@ -173,11 +181,6 @@ exports.getPurchasedProducts = async (req, res) => {
   }
 };
 
-const { Paddle, Environment } = require('@paddle/paddle-node-sdk');
-const paddle = new Paddle(process.env.PADDLE_API_KEY, {
-  environment: Environment.sandbox, // Change to Environment.production for live
-});
-
 exports.createCheckoutSession = async (req, res) => {
   try {
     const { productId } = req.body;
@@ -186,10 +189,14 @@ exports.createCheckoutSession = async (req, res) => {
     const product = await MarketProduct.findByPk(productId);
     if (!product) return res.status(404).json({ message: 'Product not found' });
 
+    const paddleProductId = process.env.PADDLE_MARKETPLACE_PRODUCT_ID;
+    if (!paddleProductId) {
+      return res.status(500).json({ message: 'Paddle marketplace product is not configured.' });
+    }
+
     const sellerEarnings = (product.price * 0.60).toFixed(2);
     const platformFee = (product.price * 0.40).toFixed(2);
 
-    // 1. Create a pending record in our DB
     const purchase = await MarketPurchase.create({
       clientId,
       marketProductId: productId,
@@ -198,10 +205,6 @@ exports.createCheckoutSession = async (req, res) => {
       platformFee,
       status: 'pending'
     });
-
-    // 2. Create a Transaction in Paddle with a CUSTOM price
-    // We use a generic Product ID from env to act as the base
-    const paddleProductId = process.env.PADDLE_MARKETPLACE_PRODUCT_ID || 'pro_01hr...';
 
     const transaction = await paddle.transactions.create({
       items: [
@@ -242,25 +245,68 @@ exports.createCheckoutSession = async (req, res) => {
 
 exports.verifyPurchase = async (req, res) => {
   try {
-    const { session_id } = req.body;
-    if (!session_id) return res.status(400).json({ message: 'Session ID is required' });
+    const { transaction_id, session_id } = req.body;
+    const clientId = req.user.id;
 
-    const session = await stripe.checkout.sessions.retrieve(session_id);
-    
-    if (session.payment_status === 'paid') {
-      const purchase = await MarketPurchase.findOne({
-        where: { stripeSessionId: session_id }
+    if (transaction_id) {
+      let purchase = await MarketPurchase.findOne({
+        where: { paddleTransactionId: transaction_id, clientId },
       });
-      
-      if (purchase) {
-        if (purchase.status !== 'completed') {
-          purchase.status = 'completed';
-          await purchase.save();
-        }
+
+      if (purchase?.status === 'completed') {
         return res.json({ success: true, productId: purchase.marketProductId });
       }
+
+      try {
+        const txn = await paddle.transactions.get(transaction_id);
+        const paid = txn?.status === 'completed' || txn?.status === 'paid';
+
+        if (paid) {
+          if (!purchase) {
+            purchase = await MarketPurchase.findOne({
+              where: { paddleTransactionId: transaction_id },
+            });
+          }
+          if (purchase && purchase.clientId === clientId) {
+            if (purchase.status !== 'completed') {
+              purchase.status = 'completed';
+              await purchase.save();
+            }
+            return res.json({ success: true, productId: purchase.marketProductId });
+          }
+        }
+      } catch (paddleErr) {
+        if (purchase?.status === 'pending') {
+          return res.status(202).json({
+            success: false,
+            message: 'Payment is processing. Please wait a moment and refresh.',
+          });
+        }
+        throw paddleErr;
+      }
+
+      return res.status(400).json({ message: 'Payment not verified' });
     }
-    res.status(400).json({ message: 'Payment not verified' });
+
+    if (session_id) {
+      const session = await stripe.checkout.sessions.retrieve(session_id);
+
+      if (session.payment_status === 'paid') {
+        const purchase = await MarketPurchase.findOne({
+          where: { stripeSessionId: session_id, clientId },
+        });
+
+        if (purchase) {
+          if (purchase.status !== 'completed') {
+            purchase.status = 'completed';
+            await purchase.save();
+          }
+          return res.json({ success: true, productId: purchase.marketProductId });
+        }
+      }
+    }
+
+    return res.status(400).json({ message: 'Transaction ID is required' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -345,7 +391,9 @@ exports.updateProduct = async (req, res) => {
       references, 
       avgRoi, 
       vaultContents, 
-      expectedProfitMargin 
+      expectedProfitMargin,
+      seasonal,
+      trend,
     } = req.body;
 
     await product.update({
@@ -358,7 +406,9 @@ exports.updateProduct = async (req, res) => {
       monthlySalesEst: references ? Math.floor(references.reduce((acc, curr) => acc + (parseInt(curr.lastMonthSell) || 0), 0) / references.length) : product.monthlySalesEst,
       avgRoi: avgRoi !== undefined ? avgRoi : product.avgRoi,
       vaultContents: vaultContents !== undefined ? vaultContents : product.vaultContents,
-      expectedProfitMargin: expectedProfitMargin !== undefined ? expectedProfitMargin : product.expectedProfitMargin
+      expectedProfitMargin: expectedProfitMargin !== undefined ? expectedProfitMargin : product.expectedProfitMargin,
+      seasonal: seasonal !== undefined ? seasonal : product.seasonal,
+      trend: trend !== undefined ? trend : product.trend,
     });
 
     res.json({ message: 'Product updated successfully', product });

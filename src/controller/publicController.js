@@ -5,10 +5,10 @@ const PlanModel = require('../models/PlanModel');
 // @access  Public
 const getPublicPlans = async (req, res) => {
   try {
-    const activePlans = await PlanModel.findAll({ 
+    const activePlans = await PlanModel.findAll({
       where: { isActive: true },
-      attributes: ['id', 'name', 'price', 'features'],
-      order: [['price', 'ASC']]
+      attributes: ['id', 'name', 'price', 'features', 'paddlePriceId', 'paddleProductId'],
+      order: [['price', 'ASC']],
     });
     
     if (activePlans.length === 0) {

@@ -55,6 +55,14 @@ const MarketProductModel = sequelize.define('MarketProduct', {
   expectedProfitMargin: {
     type: DataTypes.DECIMAL(10, 2),
   },
+  seasonal: {
+    type: DataTypes.STRING,
+    defaultValue: 'no',
+  },
+  trend: {
+    type: DataTypes.STRING,
+    defaultValue: 'up',
+  },
   viewCount: {
     type: DataTypes.INTEGER,
     defaultValue: 0

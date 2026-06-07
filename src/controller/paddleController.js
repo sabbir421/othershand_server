@@ -1,10 +1,8 @@
-const { Paddle, Environment } = require('@paddle/paddle-node-sdk');
+const { paddle } = require('../utils/paddleClient');
 const UserModel = require('../models/UserModel');
 const PlanModel = require('../models/PlanModel');
 
-const paddle = new Paddle(process.env.PADDLE_API_KEY, {
-  environment: Environment.sandbox, // Change to Environment.production for live
-});
+const isDev = process.env.NODE_ENV !== 'production';
 
 // @desc    Paddle Webhook Receiver
 // @route   POST /api/paddle/webhook
@@ -13,10 +11,6 @@ const webhook = async (req, res) => {
   const signature = req.headers['paddle-signature'] || '';
   const rawBody = req.body ? req.body.toString() : ''; 
   const secret = process.env.PADDLE_WEBHOOK_SECRET || '';
-
-  console.log('--- Webhook Received ---');
-  console.log('Signature Header:', !!signature);
-  console.log('Raw Body Length:', rawBody.length);
 
   try {
     if (!signature || !secret || !rawBody) {
@@ -37,9 +31,9 @@ const webhook = async (req, res) => {
     if (event) {
       // Handle both SDK versions and raw structures
       const eventType = event.eventType || event.event_type || (event.data ? event.data.event_type : null);
-      console.log('--- Paddle Event Decoded ---');
-      console.log('Event Type:', eventType);
-      console.log('Event Data Keys:', Object.keys(event.data || {}));
+      if (isDev) {
+        console.log('Paddle webhook:', eventType);
+      }
 
       switch (eventType) {
         case 'subscription.created':
@@ -113,7 +107,9 @@ const webhook = async (req, res) => {
               { where: updateCriteria }
             );
             
-            console.log(`Marketplace Purchase Completed: Record ${purchaseId || 'unknown'} fulfilled for User ${userId}`);
+            if (isDev) {
+              console.log(`Marketplace purchase completed: ${purchaseId || 'unknown'} for user ${userId}`);
+            }
 
             // Send marketplace purchase confirmation email
             try {
@@ -142,7 +138,9 @@ const webhook = async (req, res) => {
           break;
 
         default:
-          console.log(`Unhandled Paddle event type: ${event.eventType}`);
+          if (isDev) {
+            console.log(`Unhandled Paddle event: ${eventType}`);
+          }
       }
     }
     res.json({ received: true });

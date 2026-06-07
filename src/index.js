@@ -163,6 +163,17 @@ const startServer = async () => {
   await addColumnIfNotExists('market_products', 'vaultContents', 'JSON NULL');
   await addColumnIfNotExists('market_products', 'expectedProfitMargin', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('market_products', 'viewCount', 'INT DEFAULT 0');
+  await addColumnIfNotExists('market_products', 'seasonal', 'VARCHAR(255) DEFAULT "no"');
+  await addColumnIfNotExists('market_products', 'trend', 'VARCHAR(255) DEFAULT "up"');
+
+  try {
+    await sequelize.query(
+      `ALTER TABLE \`market_products\` MODIFY COLUMN \`status\` ENUM('pending', 'active', 'rejected', 'sold', 'hidden') NOT NULL DEFAULT 'pending'`
+    );
+    console.log('Updated market_products.status enum to include pending/rejected');
+  } catch (err) {
+    console.error('Error updating market_products.status enum:', err.message);
+  }
   
   // AI Validation expansion
   await addColumnIfNotExists('validations', 'launchPlanId', 'INT NULL');
