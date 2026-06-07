@@ -11,6 +11,12 @@ const {
   buildCompetitorSummary,
   normalizeBlueprintPreview,
 } = require('../utils/blueprintPreviewAnalysis');
+const {
+  calculatePlatformFee,
+  calculateSellerEarnings,
+  fallbackPlatformFee,
+  fallbackSellerEarnings,
+} = require('../constants/sellerFees');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'dummy_api_key_to_prevent_startup_crash',
@@ -242,8 +248,8 @@ exports.createCheckoutSession = async (req, res) => {
       return res.status(500).json({ message: 'Paddle marketplace product is not configured.' });
     }
 
-    const sellerEarnings = (product.price * 0.60).toFixed(2);
-    const platformFee = (product.price * 0.40).toFixed(2);
+    const sellerEarnings = calculateSellerEarnings(product.price);
+    const platformFee = calculatePlatformFee(product.price);
 
     const purchase = await MarketPurchase.create({
       clientId,
@@ -373,7 +379,10 @@ exports.getSellerStats = async (req, res) => {
       }
     });
 
-    const totalEarnings = sales.reduce((acc, curr) => acc + parseFloat(curr.sellerEarnings || (curr.amount * 0.6)), 0);
+    const totalEarnings = sales.reduce(
+      (acc, curr) => acc + parseFloat(curr.sellerEarnings || fallbackSellerEarnings(curr.amount)),
+      0
+    );
     
     res.json({
       totalProducts: products.length,
@@ -579,8 +588,8 @@ exports.getSellerSalesHistory = async (req, res) => {
       return {
         id: sale.id,
         amount: sale.amount,
-        sellerEarnings: sale.sellerEarnings || (sale.amount * 0.6).toFixed(2),
-        platformFee: sale.platformFee || (sale.amount * 0.4).toFixed(2),
+        sellerEarnings: sale.sellerEarnings || calculateSellerEarnings(sale.amount),
+        platformFee: sale.platformFee || calculatePlatformFee(sale.amount),
         status: sale.status,
         createdAt: sale.createdAt,
         paddleTransactionId: sale.paddleTransactionId,
@@ -589,7 +598,8 @@ exports.getSellerSalesHistory = async (req, res) => {
           id: product.id,
           title: product.title,
           category: product.category,
-          mainImage: product.mainImage
+          mainImage: product.mainImage,
+          marketplace: product.marketplace || 'US',
         },
         clientId: sale.clientId // Included for reference if needed
       };

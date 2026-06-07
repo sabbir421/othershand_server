@@ -2,7 +2,7 @@ const Payout = require('../models/PayoutModel');
 const MarketPurchase = require('../models/MarketPurchaseModel');
 const MarketProduct = require('../models/MarketProductModel');
 const Seller = require('../models/SellerModel');
-const { Op } = require('sequelize');
+const { fallbackSellerEarnings } = require('../constants/sellerFees');
 
 // Utility to calculate seller balance
 const calculateSellerFinancials = async (sellerId) => {
@@ -18,7 +18,10 @@ const calculateSellerFinancials = async (sellerId) => {
         status: 'completed'
       }
     });
-    totalEarned = sales.reduce((acc, curr) => acc + parseFloat(curr.sellerEarnings || (curr.amount * 0.6)), 0);
+    totalEarned = sales.reduce(
+      (acc, curr) => acc + parseFloat(curr.sellerEarnings || fallbackSellerEarnings(curr.amount)),
+      0
+    );
   }
 
   // 2. Calculate Withdrawals

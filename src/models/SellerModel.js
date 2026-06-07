@@ -44,6 +44,16 @@ const SellerModel = sequelize.define('Seller', {
   resetOtpExpires: {
     type: DataTypes.DATE,
   },
+  isVerified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  verificationOtp: {
+    type: DataTypes.STRING,
+  },
+  verificationOtpExpires: {
+    type: DataTypes.DATE,
+  },
 }, {
   tableName: 'sellers',
   timestamps: true,

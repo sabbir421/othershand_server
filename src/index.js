@@ -211,6 +211,9 @@ const startServer = async () => {
   
   await addColumnIfNotExists('sellers', 'resetOtp', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('sellers', 'resetOtpExpires', 'DATETIME NULL');
+  await addColumnIfNotExists('sellers', 'isVerified', 'TINYINT(1) DEFAULT 1');
+  await addColumnIfNotExists('sellers', 'verificationOtp', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('sellers', 'verificationOtpExpires', 'DATETIME NULL');
   await addColumnIfNotExists('plans', 'features', 'JSON NULL');
   await addColumnIfNotExists('plans', 'paddleProductId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('plans', 'paddlePriceId', 'VARCHAR(255) NULL');

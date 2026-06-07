@@ -4,6 +4,8 @@ const sellerController = require('../controller/sellerController');
 const { protect } = require('../middleware/authMiddleware');
 
 router.post('/register', sellerController.register);
+router.post('/verify-otp', sellerController.verifyRegisterOtp);
+router.post('/resend-otp', sellerController.resendVerificationOtp);
 router.post('/login', sellerController.login);
 
 // Protected routes

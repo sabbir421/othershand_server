@@ -5,7 +5,7 @@ const MarketPurchaseModel = require('../models/MarketPurchaseModel');
 const SellerModel = require('../models/SellerModel');
 const PayoutModel = require('../models/PayoutModel');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key_to_prevent_startup_crash');
-const { sequelize } = require('../config/database');
+const { fallbackPlatformFee, fallbackSellerEarnings } = require('../constants/sellerFees');
 
 // @desc    Get Admin Statistics
 // @route   GET /api/admin/stats
@@ -27,8 +27,14 @@ const getAdminStats = async (req, res) => {
       where: { status: 'completed' }
     });
 
-    const totalMarketRevenue = marketPurchases.reduce((acc, curr) => acc + parseFloat(curr.platformFee || (curr.amount * 0.4)), 0);
-    const totalSellerPayoutsEarned = marketPurchases.reduce((acc, curr) => acc + parseFloat(curr.sellerEarnings || (curr.amount * 0.6)), 0);
+    const totalMarketRevenue = marketPurchases.reduce(
+      (acc, curr) => acc + parseFloat(curr.platformFee || fallbackPlatformFee(curr.amount)),
+      0
+    );
+    const totalSellerPayoutsEarned = marketPurchases.reduce(
+      (acc, curr) => acc + parseFloat(curr.sellerEarnings || fallbackSellerEarnings(curr.amount)),
+      0
+    );
 
     const pendingPayouts = await PayoutModel.count({ where: { status: 'pending' } });
     const processingPayouts = await PayoutModel.count({ where: { status: 'processing' } });
