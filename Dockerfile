@@ -17,7 +17,7 @@ RUN apk add --no-cache tini \
 
 COPY --from=build --chown=nodeapp:nodeapp /usr/src/app ./
 USER nodeapp
-ENV TZ=Asia/Dhaka PORT=8088
-EXPOSE 8088
+ENV TZ=Asia/Dhaka PORT=8086
+EXPOSE 8086
 ENTRYPOINT ["/sbin/tini","--"]
 CMD ["npm","start"]
