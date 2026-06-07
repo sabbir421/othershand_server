@@ -59,11 +59,7 @@ exports.register = async (req, res) => {
       verificationOtpExpires: expires,
     });
 
-    try {
-      await sendSellerVerificationEmail(email, firstName, otp);
-    } catch (emailErr) {
-      console.error('Failed to send seller verification email:', emailErr);
-    }
+    await sendSellerVerificationEmail(email, firstName, otp);
 
     res.status(201).json({
       message: 'Registration successful! Verification OTP sent to your email.',
@@ -71,6 +67,10 @@ exports.register = async (req, res) => {
       isVerified: false,
     });
   } catch (error) {
+    console.error('Seller register error:', error);
+    if (error.message?.includes('SMTP')) {
+      return res.status(503).json({ message: 'Could not send verification email. Please try again later.' });
+    }
     res.status(500).json({ message: error.message });
   }
 };
@@ -133,14 +133,14 @@ exports.resendVerificationOtp = async (req, res) => {
     seller.verificationOtpExpires = expires;
     await seller.save();
 
-    try {
-      await sendSellerVerificationEmail(email, seller.firstName, otp);
-    } catch (emailErr) {
-      console.error('Failed to resend seller verification email:', emailErr);
-    }
+    await sendSellerVerificationEmail(email, seller.firstName, otp);
 
     res.json({ message: 'Verification code resent successfully.' });
   } catch (error) {
+    console.error('Seller resend verification OTP error:', error);
+    if (error.message?.includes('SMTP')) {
+      return res.status(503).json({ message: 'Could not send verification email. Please try again later.' });
+    }
     res.status(500).json({ message: error.message });
   }
 };

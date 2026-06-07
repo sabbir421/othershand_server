@@ -37,21 +37,17 @@ const registerUser = async (req, res) => {
 
     if (user) {
       // Send Verification Email
-      try {
-        const emailHtml = `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #020617; color: #fff; padding: 40px; border-radius: 16px;">
-            <h1 style="color: #10b981; font-size: 24px; margin-bottom: 24px; font-weight: bold;">Verify Your Email Address</h1>
-            <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Welcome to FBA Pilot! Please use the verification code below to verify your email address and activate your account. This code is valid for 10 minutes.</p>
-            <div style="background: #0f172a; padding: 24px; border-radius: 12px; text-align: center; margin: 32px 0; border: 1px solid #1e293b;">
-              <span style="font-size: 32px; font-weight: 900; letter-spacing: 0.2em; color: #fff;">${otp}</span>
-            </div>
-            <p style="color: #94a3b8; font-size: 14px;">If you did not create an account, please ignore this email.</p>
+      const emailHtml = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #020617; color: #fff; padding: 40px; border-radius: 16px;">
+          <h1 style="color: #10b981; font-size: 24px; margin-bottom: 24px; font-weight: bold;">Verify Your Email Address</h1>
+          <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Welcome to FBA Pilot! Please use the verification code below to verify your email address and activate your account. This code is valid for 10 minutes.</p>
+          <div style="background: #0f172a; padding: 24px; border-radius: 12px; text-align: center; margin: 32px 0; border: 1px solid #1e293b;">
+            <span style="font-size: 32px; font-weight: 900; letter-spacing: 0.2em; color: #fff;">${otp}</span>
           </div>
-        `;
-        await sendEmail(email, 'FBA Pilot - Verify Your Email', emailHtml);
-      } catch (emailErr) {
-        console.error('Failed to send registration verification email:', emailErr);
-      }
+          <p style="color: #94a3b8; font-size: 14px;">If you did not create an account, please ignore this email.</p>
+        </div>
+      `;
+      await sendEmail(email, 'FBA Pilot - Verify Your Email', emailHtml);
 
       res.status(201).json({
         message: 'Registration successful! Verification OTP sent to email.',
@@ -62,7 +58,10 @@ const registerUser = async (req, res) => {
       res.status(400).json({ message: 'Invalid user data' });
     }
   } catch (error) {
-    console.error(error);
+    console.error('Register user error:', error);
+    if (error.message?.includes('SMTP')) {
+      return res.status(503).json({ message: 'Could not send verification email. Please try again later.' });
+    }
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -249,24 +248,23 @@ const resendVerificationOtp = async (req, res) => {
     await user.save();
 
     // Send Verification Email
-    try {
-      const emailHtml = `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #020617; color: #fff; padding: 40px; border-radius: 16px;">
-          <h1 style="color: #10b981; font-size: 24px; margin-bottom: 24px; font-weight: bold;">Verify Your Email Address</h1>
-          <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Please use the verification code below to verify your email address and activate your account. This code is valid for 10 minutes.</p>
-          <div style="background: #0f172a; padding: 24px; border-radius: 12px; text-align: center; margin: 32px 0; border: 1px solid #1e293b;">
-            <span style="font-size: 32px; font-weight: 900; letter-spacing: 0.2em; color: #fff;">${otp}</span>
-          </div>
+    const emailHtml = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; background: #020617; color: #fff; padding: 40px; border-radius: 16px;">
+        <h1 style="color: #10b981; font-size: 24px; margin-bottom: 24px; font-weight: bold;">Verify Your Email Address</h1>
+        <p style="color: #94a3b8; font-size: 16px; line-height: 1.5;">Please use the verification code below to verify your email address and activate your account. This code is valid for 10 minutes.</p>
+        <div style="background: #0f172a; padding: 24px; border-radius: 12px; text-align: center; margin: 32px 0; border: 1px solid #1e293b;">
+          <span style="font-size: 32px; font-weight: 900; letter-spacing: 0.2em; color: #fff;">${otp}</span>
         </div>
-      `;
-      await sendEmail(email, 'FBA Pilot - Verify Your Email', emailHtml);
-    } catch (emailErr) {
-      console.error('Failed to resend registration verification email:', emailErr);
-    }
+      </div>
+    `;
+    await sendEmail(email, 'FBA Pilot - Verify Your Email', emailHtml);
 
     res.json({ message: 'Verification OTP resent successfully.' });
   } catch (error) {
     console.error('Resend verification OTP error:', error);
+    if (error.message?.includes('SMTP')) {
+      return res.status(503).json({ message: 'Could not send verification email. Please try again later.' });
+    }
     res.status(500).json({ message: 'Failed to resend verification OTP' });
   }
 };

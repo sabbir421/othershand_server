@@ -33,6 +33,10 @@ jobs:
             rm -f .env
             echo "Creating fresh .env from .env.prd"
             cp .env.prd .env
+            if [ -n "${{ secrets.SMTP_PASS }}" ]; then
+              echo "Overriding SMTP_PASS from GitHub secret"
+              sed -i "s|^SMTP_PASS=.*|SMTP_PASS=${{ secrets.SMTP_PASS }}|" .env
+            fi
             echo "✓ .env file created successfully"
           else
             echo "ERROR: .env.prd file not found!"
