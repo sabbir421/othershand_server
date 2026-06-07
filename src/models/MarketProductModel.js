@@ -19,6 +19,10 @@ const MarketProductModel = sequelize.define('MarketProduct', {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  marketplace: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   price: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
@@ -51,6 +55,10 @@ const MarketProductModel = sequelize.define('MarketProduct', {
   vaultContents: {
     type: DataTypes.JSON,
     comment: 'Array of features included in the vault'
+  },
+  blueprintPreview: {
+    type: DataTypes.JSON,
+    comment: 'AI-generated pre-purchase blueprint preview report',
   },
   expectedProfitMargin: {
     type: DataTypes.DECIMAL(10, 2),

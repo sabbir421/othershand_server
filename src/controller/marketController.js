@@ -1,23 +1,50 @@
+const OpenAI = require('openai');
 const MarketProduct = require('../models/MarketProductModel');
 const MarketPurchase = require('../models/MarketPurchaseModel');
 const Seller = require('../models/SellerModel');
 const { Op } = require('sequelize');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy');
 const { paddle } = require('../utils/paddleClient');
+const {
+  BLUEPRINT_PREVIEW_SYSTEM_PROMPT,
+  buildBlueprintPreviewPrompt,
+  buildCompetitorSummary,
+  normalizeBlueprintPreview,
+} = require('../utils/blueprintPreviewAnalysis');
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || 'dummy_api_key_to_prevent_startup_crash',
+});
+
+const parseJsonField = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value === 'string') {
+    try { return JSON.parse(value); } catch { return fallback; }
+  }
+  return value;
+};
 
 exports.createProduct = async (req, res) => {
   try {
-    const { title, category, price, references, avgRoi, vaultContents, expectedProfitMargin, seasonal, trend } = req.body;
+    const { title, category, marketplace, price, references, avgRoi, vaultContents, expectedProfitMargin, seasonal, trend, blueprintPreview } = req.body;
     const sellerId = req.user.id;
 
     if (!references || references.length < 1) {
       return res.status(400).json({ message: 'A minimum of 1 product reference is required for validation.' });
+    }
+    if (references.length > 5) {
+      return res.status(400).json({ message: 'A maximum of 5 product references is allowed.' });
+    }
+    const parsedBlueprintPreview = parseJsonField(blueprintPreview, null);
+    if (!parsedBlueprintPreview?.marketSummary) {
+      return res.status(400).json({ message: 'Blueprint Preview is required. Generate the preview report before submitting.' });
     }
 
     const product = await MarketProduct.create({
       sellerId,
       title,
       category,
+      marketplace: marketplace || 'US',
       price,
       references,
       mainImage: references[0].image,
@@ -28,9 +55,40 @@ exports.createProduct = async (req, res) => {
       expectedProfitMargin: expectedProfitMargin || 0,
       seasonal: seasonal || 'no',
       trend: trend || 'up',
+      blueprintPreview: parsedBlueprintPreview,
     });
 
     res.status(201).json({ message: 'Research data posted successfully', product });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const anonymizeMarketplaceProduct = (product) => ({
+  id: product.id,
+  price: product.price,
+  avgBsr: product.avgBsr,
+  avgRoi: product.avgRoi,
+  monthlySalesEst: product.monthlySalesEst,
+  seasonal: product.seasonal || 'no',
+  trend: product.trend || 'up',
+  createdAt: product.createdAt,
+  title: `CONFIDENTIAL BLUEPRINT #${product.id.toString().padStart(4, '0')}`,
+  mainImage: 'REDACTED',
+  category: product.category || 'Verified Asset',
+  marketplace: product.marketplace || 'US',
+});
+
+exports.getFeaturedProducts = async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 6, 12);
+    const products = await MarketProduct.findAll({
+      where: { status: 'active' },
+      attributes: ['id', 'price', 'category', 'marketplace', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'seasonal', 'trend', 'createdAt'],
+      order: [['createdAt', 'DESC']],
+      limit,
+    });
+    res.json(products.map(anonymizeMarketplaceProduct));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -59,22 +117,10 @@ exports.getAllProducts = async (req, res) => {
     // Clients see limited info before purchase
     const products = await MarketProduct.findAll({
       where: whereClause,
-      attributes: ['id', 'price', 'category', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'seasonal', 'trend', 'createdAt'],
+      attributes: ['id', 'price', 'category', 'marketplace', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'seasonal', 'trend', 'createdAt'],
       order: [['createdAt', 'DESC']]
     });
-    const anonymizedProducts = products.map(p => ({
-      id: p.id,
-      price: p.price,
-      avgBsr: p.avgBsr,
-      avgRoi: p.avgRoi,
-      monthlySalesEst: p.monthlySalesEst,
-      seasonal: p.seasonal || 'no',
-      trend: p.trend || 'up',
-      createdAt: p.createdAt,
-      title: `CONFIDENTIAL BLUEPRINT #${p.id.toString().padStart(4, '0')}`,
-      mainImage: 'REDACTED',
-      category: p.category || 'Verified Asset'
-    }));
+    const anonymizedProducts = products.map(anonymizeMarketplaceProduct);
     res.json(anonymizedProducts);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -138,6 +184,8 @@ exports.getProductDetails = async (req, res) => {
         seasonal: productJson.seasonal || 'no',
         trend: productJson.trend || 'up',
         category: productJson.category || 'Verified Asset',
+        marketplace: productJson.marketplace || 'US',
+        blueprintPreview: parseJsonField(productJson.blueprintPreview, null),
         status: productJson.status,
         createdAt: productJson.createdAt,
         updatedAt: productJson.updatedAt,
@@ -386,7 +434,8 @@ exports.updateProduct = async (req, res) => {
 
     const { 
       title, 
-      category, 
+      category,
+      marketplace,
       price, 
       references, 
       avgRoi, 
@@ -394,11 +443,24 @@ exports.updateProduct = async (req, res) => {
       expectedProfitMargin,
       seasonal,
       trend,
+      blueprintPreview,
     } = req.body;
+
+    if (references && references.length > 5) {
+      return res.status(400).json({ message: 'A maximum of 5 product references is allowed.' });
+    }
+    const nextBlueprintPreview = parseJsonField(
+      blueprintPreview !== undefined ? blueprintPreview : product.blueprintPreview,
+      null
+    );
+    if (!nextBlueprintPreview?.marketSummary) {
+      return res.status(400).json({ message: 'Blueprint Preview is required. Generate the preview report before saving.' });
+    }
 
     await product.update({
       title,
       category,
+      marketplace: marketplace !== undefined ? marketplace : product.marketplace,
       price,
       references: references || product.references,
       mainImage: references && references.length > 0 ? references[0].image : product.mainImage,
@@ -409,11 +471,81 @@ exports.updateProduct = async (req, res) => {
       expectedProfitMargin: expectedProfitMargin !== undefined ? expectedProfitMargin : product.expectedProfitMargin,
       seasonal: seasonal !== undefined ? seasonal : product.seasonal,
       trend: trend !== undefined ? trend : product.trend,
+      blueprintPreview: blueprintPreview !== undefined ? blueprintPreview : product.blueprintPreview,
     });
 
     res.json({ message: 'Product updated successfully', product });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.generateBlueprintPreview = async (req, res) => {
+  try {
+    const {
+      category,
+      marketplace,
+      price,
+      avgRoi,
+      expectedProfitMargin,
+      seasonal,
+      trend,
+      references = [],
+    } = req.body;
+
+    if (!references.length) {
+      return res.status(400).json({ message: 'At least one product reference is required to generate a preview.' });
+    }
+    if (references.length > 5) {
+      return res.status(400).json({ message: 'A maximum of 5 product references is allowed.' });
+    }
+
+    const avgBsr = Math.floor(
+      references.reduce((acc, curr) => acc + (parseInt(curr.bsr, 10) || 0), 0) / references.length
+    );
+    const monthlySalesEst = Math.floor(
+      references.reduce((acc, curr) => acc + (parseInt(curr.lastMonthSell, 10) || 0), 0) / references.length
+    );
+
+    const prompt = buildBlueprintPreviewPrompt({
+      price,
+      avgRoi,
+      avgBsr,
+      monthlySalesEst,
+      expectedProfitMargin,
+      seasonal,
+      trend,
+      category,
+      marketplace,
+      referenceCount: references.length,
+      competitorSummary: buildCompetitorSummary(references),
+    });
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_RESPONSES_MODEL || 'gpt-4o',
+      messages: [
+        { role: 'system', content: BLUEPRINT_PREVIEW_SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.65,
+    });
+
+    const blueprintPreview = normalizeBlueprintPreview(
+      JSON.parse(response.choices[0].message.content),
+      {
+        avgRoi,
+        expectedProfitMargin,
+        referenceCount: references.length,
+        seasonal,
+        trend,
+      }
+    );
+
+    res.json({ blueprintPreview });
+  } catch (error) {
+    console.error('Blueprint Preview Error:', error);
+    res.status(500).json({ message: error.message || 'Failed to generate blueprint preview' });
   }
 };
 
