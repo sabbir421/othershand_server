@@ -104,6 +104,14 @@ const startServer = async () => {
   await addColumnIfNotExists('supplier_quotes', 'packagingPrice', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('supplier_quotes', 'finalUnitPriceAir', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('supplier_quotes', 'finalUnitPriceSea', 'DECIMAL(10, 2) NULL');
+  await addColumnIfNotExists('supplier_quotes', 'shippingAirType', "VARCHAR(20) DEFAULT 'total'");
+  await addColumnIfNotExists('supplier_quotes', 'shippingSeaType', "VARCHAR(20) DEFAULT 'total'");
+  await addColumnIfNotExists('supplier_quotes', 'moq', 'INT NULL');
+  await addColumnIfNotExists('supplier_quotes', 'leadTime', 'INT NULL');
+  await addColumnIfNotExists('supplier_quotes', 'notes', 'TEXT NULL');
+  await addColumnIfNotExists('supplier_quotes', 'location', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('supplier_quotes', 'sellerLink', 'TEXT NULL');
+  await addColumnIfNotExists('supplier_quotes', 'sampleCost', 'DECIMAL(10, 2) NULL');
 
   // Manual Sync for Research (pluralized as 'Researches' or 'Research' depending on config)
   const researchTables = ['Researches', 'Research'];

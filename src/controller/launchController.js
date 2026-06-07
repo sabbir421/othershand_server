@@ -1,52 +1,76 @@
 const LaunchModel = require('../models/LaunchModel');
 
+const parseIntegerField = (value) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const cleaned = String(value).replace(/[,\s]/g, '');
+  if (!cleaned) return null;
+  const num = parseInt(cleaned, 10);
+  return Number.isFinite(num) ? num : null;
+};
+
+const parseDecimalField = (value) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const cleaned = String(value).replace(/[,\s]/g, '');
+  if (!cleaned) return null;
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) ? num : null;
+};
+
+const sanitizeLaunchPlanData = (data) => {
+  const sanitized = { ...data };
+
+  ['bsr', 'reviews', 'unitCount'].forEach((field) => {
+    sanitized[field] = parseIntegerField(sanitized[field]);
+  });
+
+  [
+    'costPerUnit', 'customBag', 'shippingAir', 'shippingSea',
+    'retailPrice', 'amazonFeeFba', 'tacosPercent',
+  ].forEach((field) => {
+    sanitized[field] = parseDecimalField(sanitized[field]);
+  });
+
+  return sanitized;
+};
+
+const calculateLaunchMetrics = (data) => {
+  const cost = parseFloat(data.costPerUnit || 0);
+  const bag = parseFloat(data.customBag || 0);
+  const sAir = parseFloat(data.shippingAir || 0);
+  const sSea = parseFloat(data.shippingSea || 0);
+  const price = parseFloat(data.retailPrice || 0);
+  const fbaFee = parseFloat(data.amazonFeeFba || 0);
+  const tacosP = parseFloat(data.tacosPercent || 25) / 100;
+
+  const landingAir = cost + bag + sAir;
+  const landingSea = cost + bag + sSea;
+  const tacosValue = price * tacosP;
+
+  const profitAir = price - landingAir - fbaFee - tacosValue;
+  const profitSea = price - landingSea - fbaFee - tacosValue;
+
+  return {
+    landingCostAir: landingAir,
+    landingCostSea: landingSea,
+    netProfitAir: profitAir,
+    netProfitSea: profitSea,
+    marginAir: price > 0 ? (profitAir / price) * 100 : 0,
+    marginSea: price > 0 ? (profitSea / price) * 100 : 0,
+  };
+};
+
 // @desc    Create new launch validation plan
 // @route   POST /api/launch
 // @access  Private
 const createLaunchPlan = async (req, res) => {
   try {
-    const data = { ...req.body };
-    
-    // Clean empty strings for numeric fields
-    const numericFields = [
-      'bsr', 'reviews', 'unitCount', 'costPerUnit', 'customBag', 
-      'shippingAir', 'shippingSea', 'retailPrice', 'amazonFeeFba', 'tacosPercent'
-    ];
-    
-    numericFields.forEach(field => {
-      if (data[field] === '' || data[field] === undefined) {
-        data[field] = null;
-      }
-    });
-
-    // Perform Calculations for DB
-    const cost = parseFloat(data.costPerUnit || 0);
-    const bag = parseFloat(data.customBag || 0);
-    const sAir = parseFloat(data.shippingAir || 0);
-    const sSea = parseFloat(data.shippingSea || 0);
-    const price = parseFloat(data.retailPrice || 0);
-    const fbaFee = parseFloat(data.amazonFeeFba || 0);
-    const tacosP = parseFloat(data.tacosPercent || 25) / 100;
-
-    const landingAir = cost + bag + sAir;
-    const landingSea = cost + bag + sSea;
-    const tacosValue = price * tacosP;
-
-    const profitAir = price - landingAir - fbaFee - tacosValue;
-    const profitSea = price - landingSea - fbaFee - tacosValue;
-
-    const marginAir = price > 0 ? (profitAir / price) * 100 : 0;
-    const marginSea = price > 0 ? (profitSea / price) * 100 : 0;
+    const data = sanitizeLaunchPlanData(req.body);
+    const metrics = calculateLaunchMetrics(data);
 
     const launchPlan = await LaunchModel.create({
       userId: req.user.id,
       ...data,
-      landingCostAir: landingAir,
-      landingCostSea: landingSea,
-      netProfitAir: profitAir,
-      netProfitSea: profitSea,
-      marginAir: marginAir,
-      marginSea: marginSea
+      ...metrics,
     });
 
     res.status(201).json(launchPlan);
@@ -98,31 +122,8 @@ const deleteLaunchPlan = async (req, res) => {
 // @access  Private
 const updateLaunchPlan = async (req, res) => {
   try {
-    const data = { ...req.body };
-    const numericFields = [
-      'bsr', 'reviews', 'unitCount', 'costPerUnit', 'customBag', 
-      'shippingAir', 'shippingSea', 'retailPrice', 'amazonFeeFba', 'tacosPercent'
-    ];
-    
-    numericFields.forEach(field => {
-      if (data[field] === '' || data[field] === undefined) data[field] = null;
-    });
-
-    const cost = parseFloat(data.costPerUnit || 0);
-    const bag = parseFloat(data.customBag || 0);
-    const sAir = parseFloat(data.shippingAir || 0);
-    const sSea = parseFloat(data.shippingSea || 0);
-    const price = parseFloat(data.retailPrice || 0);
-    const fbaFee = parseFloat(data.amazonFeeFba || 0);
-    const tacosP = parseFloat(data.tacosPercent || 25) / 100;
-
-    const landingAir = cost + bag + sAir;
-    const landingSea = cost + bag + sSea;
-    const tacosValue = price * tacosP;
-    const profitAir = price - landingAir - fbaFee - tacosValue;
-    const profitSea = price - landingSea - fbaFee - tacosValue;
-    const marginAir = price > 0 ? (profitAir / price) * 100 : 0;
-    const marginSea = price > 0 ? (profitSea / price) * 100 : 0;
+    const data = sanitizeLaunchPlanData(req.body);
+    const metrics = calculateLaunchMetrics(data);
 
     const plan = await LaunchModel.findOne({
       where: { id: req.params.id, userId: req.user.id }
@@ -132,12 +133,7 @@ const updateLaunchPlan = async (req, res) => {
 
     await plan.update({
       ...data,
-      landingCostAir: landingAir,
-      landingCostSea: landingSea,
-      netProfitAir: profitAir,
-      netProfitSea: profitSea,
-      marginAir: marginAir,
-      marginSea: marginSea
+      ...metrics,
     });
 
     res.json(plan);

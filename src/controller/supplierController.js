@@ -1,11 +1,40 @@
 const SupplierModel = require('../models/SupplierModel');
 const QuotationFolderModel = require('../models/QuotationFolderModel');
+const { calculateQuoteCosts } = require('../utils/supplierQuoteCalculations');
+
+const NUMERIC_FIELDS = [
+  'unitPrice', 'packagingPrice', 'shippingAir', 'shippingSea',
+  'samplePrice', 'sampleCost', 'shippingCost', 'quantity', 'moq', 'leadTime',
+];
+
+const normalizeQuotePayload = (data) => {
+  const payload = { ...data };
+
+  NUMERIC_FIELDS.forEach((field) => {
+    if (payload[field] === '' || payload[field] === undefined) {
+      payload[field] = null;
+    }
+  });
+
+  if (payload.sampleCost != null && payload.samplePrice == null) {
+    payload.samplePrice = payload.sampleCost;
+  }
+
+  payload.shippingAirType = payload.shippingAirType === 'per_unit' ? 'per_unit' : 'total';
+  payload.shippingSeaType = payload.shippingSeaType === 'per_unit' ? 'per_unit' : 'total';
+
+  const costs = calculateQuoteCosts(payload);
+
+  return {
+    ...payload,
+    quantity: costs.quantity,
+    finalUnitPriceAir: costs.finalUnitPriceAir,
+    finalUnitPriceSea: costs.finalUnitPriceSea,
+  };
+};
 
 // --- FOLDER MANAGEMENT ---
 
-// @desc    Create new quotation folder
-// @route   POST /api/suppliers/folders
-// @access  Private
 const createFolder = async (req, res) => {
   try {
     const { folderName } = req.body;
@@ -13,7 +42,7 @@ const createFolder = async (req, res) => {
 
     const folder = await QuotationFolderModel.create({
       userId: req.user.id,
-      folderName
+      folderName,
     });
     res.status(201).json(folder);
   } catch (error) {
@@ -22,15 +51,12 @@ const createFolder = async (req, res) => {
   }
 };
 
-// @desc    Get all folders for user
-// @route   GET /api/suppliers/folders
-// @access  Private
 const getFolders = async (req, res) => {
   try {
     const folders = await QuotationFolderModel.findAll({
       where: { userId: req.user.id },
       include: [{ model: SupplierModel, as: 'quotes' }],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
     });
     res.json(folders);
   } catch (error) {
@@ -39,13 +65,10 @@ const getFolders = async (req, res) => {
   }
 };
 
-// @desc    Delete folder
-// @route   DELETE /api/suppliers/folders/:id
-// @access  Private
 const deleteFolder = async (req, res) => {
   try {
     const folder = await QuotationFolderModel.findOne({
-      where: { id: req.params.id, userId: req.user.id }
+      where: { id: req.params.id, userId: req.user.id },
     });
     if (!folder) return res.status(404).json({ message: 'Folder not found' });
 
@@ -59,38 +82,13 @@ const deleteFolder = async (req, res) => {
 
 // --- QUOTATION MANAGEMENT ---
 
-// @desc    Save new supplier quotation
-// @route   POST /api/suppliers
-// @access  Private
 const createSupplierQuote = async (req, res) => {
   try {
-    const data = { ...req.body };
-    
-    // Clean empty strings for numeric fields
-    const numericFields = [
-      'unitPrice', 'packagingPrice', 'shippingAir', 'shippingSea', 'samplePrice', 'shippingCost'
-    ];
-    
-    numericFields.forEach(field => {
-      if (data[field] === '' || data[field] === undefined) {
-        data[field] = null;
-      }
-    });
-
-    // Auto-calculate Final Unit Prices for DB
-    const unitPrice = parseFloat(data.unitPrice || 0);
-    const pkgPrice = parseFloat(data.packagingPrice || 0);
-    const sAir = parseFloat(data.shippingAir || 0);
-    const sSea = parseFloat(data.shippingSea || 0);
-
-    const finalAir = unitPrice + pkgPrice + sAir;
-    const finalSea = unitPrice + pkgPrice + sSea;
+    const payload = normalizeQuotePayload(req.body);
 
     const quote = await SupplierModel.create({
       userId: req.user.id,
-      ...data,
-      finalUnitPriceAir: finalAir,
-      finalUnitPriceSea: finalSea
+      ...payload,
     });
 
     res.status(201).json(quote);
@@ -100,15 +98,12 @@ const createSupplierQuote = async (req, res) => {
   }
 };
 
-// @desc    Get all supplier quotes for user
-// @route   GET /api/suppliers
-// @access  Private
 const getAllSupplierQuotes = async (req, res) => {
   try {
     const quotes = await SupplierModel.findAll({
       where: { userId: req.user.id },
       include: [{ model: QuotationFolderModel, as: 'folder' }],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC']],
     });
     res.json(quotes);
   } catch (error) {
@@ -117,13 +112,10 @@ const getAllSupplierQuotes = async (req, res) => {
   }
 };
 
-// @desc    Delete supplier quote
-// @route   DELETE /api/suppliers/:id
-// @access  Private
 const deleteSupplierQuote = async (req, res) => {
   try {
     const quote = await SupplierModel.findOne({
-      where: { id: req.params.id, userId: req.user.id }
+      where: { id: req.params.id, userId: req.user.id },
     });
 
     if (!quote) {
@@ -138,35 +130,17 @@ const deleteSupplierQuote = async (req, res) => {
   }
 };
 
-// @desc    Update supplier quote
-// @route   PUT /api/suppliers/:id
-// @access  Private
 const updateSupplierQuote = async (req, res) => {
   try {
-    const data = { ...req.body };
-    const numericFields = ['unitPrice', 'packagingPrice', 'shippingAir', 'shippingSea', 'samplePrice', 'shippingCost'];
-    numericFields.forEach(field => {
-      if (data[field] === '' || data[field] === undefined) data[field] = null;
-    });
-
-    const unitPrice = parseFloat(data.unitPrice || 0);
-    const pkgPrice = parseFloat(data.packagingPrice || 0);
-    const sAir = parseFloat(data.shippingAir || 0);
-    const sSea = parseFloat(data.shippingSea || 0);
-    const finalAir = unitPrice + pkgPrice + sAir;
-    const finalSea = unitPrice + pkgPrice + sSea;
+    const payload = normalizeQuotePayload(req.body);
 
     const quote = await SupplierModel.findOne({
-      where: { id: req.params.id, userId: req.user.id }
+      where: { id: req.params.id, userId: req.user.id },
     });
 
     if (!quote) return res.status(404).json({ message: 'Quotation not found' });
 
-    await quote.update({
-      ...data,
-      finalUnitPriceAir: finalAir,
-      finalUnitPriceSea: finalSea
-    });
+    await quote.update(payload);
 
     res.json(quote);
   } catch (error) {
@@ -182,5 +156,5 @@ module.exports = {
   createSupplierQuote,
   getAllSupplierQuotes,
   deleteSupplierQuote,
-  updateSupplierQuote
+  updateSupplierQuote,
 };
