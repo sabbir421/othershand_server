@@ -77,13 +77,6 @@ const loginUser = async (req, res) => {
     const user = await UserModel.findOne({ where: { email } });
 
     if (user && (await bcrypt.compare(password, user.password))) {
-      if (!user.isVerified) {
-        return res.status(400).json({ 
-          message: 'Please verify your email first.', 
-          isVerified: false, 
-          email: user.email 
-        });
-      }
       res.json({
         id: user.id,
         name: user.name,
@@ -93,7 +86,7 @@ const loginUser = async (req, res) => {
         token: generateToken(user.id),
       });
     } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+      res.status(401).json({ message: 'Invalid credentials' });
     }
   } catch (error) {
     console.error(error);
