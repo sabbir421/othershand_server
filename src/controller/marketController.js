@@ -30,10 +30,66 @@ const parseJsonField = (value, fallback) => {
   return value;
 };
 
+const MAX_TOP_KEYWORDS = 20;
+const MAX_SUPPLIER_LINKS = 5;
+const MAX_BULLET_POINTS = 8;
+
+const sanitizeTopKeywords = (keywords) => {
+  if (!keywords) return [];
+  const list = Array.isArray(keywords) ? keywords : [];
+  return list
+    .map((keyword) => String(keyword).trim())
+    .filter(Boolean)
+    .slice(0, MAX_TOP_KEYWORDS);
+};
+
+const sanitizeSupplierLinks = (links) => {
+  if (!links) return [];
+  const list = Array.isArray(links) ? links : [];
+  return list
+    .map((link) => String(link).trim())
+    .filter(Boolean)
+    .slice(0, MAX_SUPPLIER_LINKS);
+};
+
+const sanitizeBulletPoints = (points) => {
+  if (!points) return [];
+  const list = Array.isArray(points) ? points : [];
+  return list
+    .map((point) => String(point).trim())
+    .filter(Boolean)
+    .slice(0, MAX_BULLET_POINTS);
+};
+
+const validateListingExtras = (topKeywords, supplierLinks, bulletPoints) => {
+  if (topKeywords.length > MAX_TOP_KEYWORDS) {
+    return `A maximum of ${MAX_TOP_KEYWORDS} top keywords is allowed.`;
+  }
+  if (supplierLinks.length > MAX_SUPPLIER_LINKS) {
+    return `A maximum of ${MAX_SUPPLIER_LINKS} supplier links is allowed.`;
+  }
+  if (bulletPoints.length > MAX_BULLET_POINTS) {
+    return `A maximum of ${MAX_BULLET_POINTS} bullet points is allowed.`;
+  }
+  const invalidLink = supplierLinks.find((link) => !/^https?:\/\//i.test(link));
+  if (invalidLink) {
+    return 'Supplier links must be valid URLs starting with http:// or https://';
+  }
+  return null;
+};
+
 exports.createProduct = async (req, res) => {
   try {
-    const { title, category, marketplace, price, references, avgRoi, vaultContents, expectedProfitMargin, seasonal, trend, blueprintPreview } = req.body;
+    const { title, category, marketplace, price, references, avgRoi, vaultContents, expectedProfitMargin, seasonal, trend, blueprintPreview, topKeywords, supplierLinks, bulletPoints } = req.body;
     const sellerId = req.user.id;
+
+    const sanitizedTopKeywords = sanitizeTopKeywords(topKeywords);
+    const sanitizedSupplierLinks = sanitizeSupplierLinks(supplierLinks);
+    const sanitizedBulletPoints = sanitizeBulletPoints(bulletPoints);
+    const extrasError = validateListingExtras(sanitizedTopKeywords, sanitizedSupplierLinks, sanitizedBulletPoints);
+    if (extrasError) {
+      return res.status(400).json({ message: extrasError });
+    }
 
     if (!references || references.length < 1) {
       return res.status(400).json({ message: 'A minimum of 1 product reference is required for validation.' });
@@ -62,6 +118,9 @@ exports.createProduct = async (req, res) => {
       seasonal: seasonal || 'no',
       trend: trend || 'up',
       blueprintPreview: parsedBlueprintPreview,
+      topKeywords: sanitizedTopKeywords,
+      supplierLinks: sanitizedSupplierLinks,
+      bulletPoints: sanitizedBulletPoints,
     });
 
     res.status(201).json({ message: 'Research data posted successfully', product });
@@ -206,6 +265,9 @@ exports.getProductDetails = async (req, res) => {
         category: productJson.category || 'Verified Asset',
         vaultContents: (productJson.vaultContents || []).map(() => 'Locked Asset Detail'),
         references: redactedReferences,
+        topKeywords: [],
+        supplierLinks: [],
+        bulletPoints: [],
         isLocked: true 
       });
     }
@@ -453,7 +515,24 @@ exports.updateProduct = async (req, res) => {
       seasonal,
       trend,
       blueprintPreview,
+      topKeywords,
+      supplierLinks,
+      bulletPoints,
     } = req.body;
+
+    const sanitizedTopKeywords = topKeywords !== undefined
+      ? sanitizeTopKeywords(topKeywords)
+      : sanitizeTopKeywords(product.topKeywords);
+    const sanitizedSupplierLinks = supplierLinks !== undefined
+      ? sanitizeSupplierLinks(supplierLinks)
+      : sanitizeSupplierLinks(product.supplierLinks);
+    const sanitizedBulletPoints = bulletPoints !== undefined
+      ? sanitizeBulletPoints(bulletPoints)
+      : sanitizeBulletPoints(product.bulletPoints);
+    const extrasError = validateListingExtras(sanitizedTopKeywords, sanitizedSupplierLinks, sanitizedBulletPoints);
+    if (extrasError) {
+      return res.status(400).json({ message: extrasError });
+    }
 
     if (references && references.length > 5) {
       return res.status(400).json({ message: 'A maximum of 5 product references is allowed.' });
@@ -481,6 +560,9 @@ exports.updateProduct = async (req, res) => {
       seasonal: seasonal !== undefined ? seasonal : product.seasonal,
       trend: trend !== undefined ? trend : product.trend,
       blueprintPreview: blueprintPreview !== undefined ? blueprintPreview : product.blueprintPreview,
+      topKeywords: sanitizedTopKeywords,
+      supplierLinks: sanitizedSupplierLinks,
+      bulletPoints: sanitizedBulletPoints,
     });
 
     res.json({ message: 'Product updated successfully', product });

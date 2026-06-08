@@ -74,7 +74,19 @@ const MarketProductModel = sequelize.define('MarketProduct', {
   viewCount: {
     type: DataTypes.INTEGER,
     defaultValue: 0
-  }
+  },
+  topKeywords: {
+    type: DataTypes.JSON,
+    comment: 'Optional array of up to 20 top keywords (visible after purchase)',
+  },
+  supplierLinks: {
+    type: DataTypes.JSON,
+    comment: 'Optional array of up to 5 verified supplier URLs (visible after purchase)',
+  },
+  bulletPoints: {
+    type: DataTypes.JSON,
+    comment: 'Optional array of up to 8 bullet points (visible after purchase)',
+  },
 }, {
   tableName: 'market_products',
   timestamps: true,
