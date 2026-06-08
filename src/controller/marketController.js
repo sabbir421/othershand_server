@@ -30,6 +30,20 @@ const parseJsonField = (value, fallback) => {
   return value;
 };
 
+const computeMaxMonthlySales = (references = []) => {
+  if (!references.length) return 0;
+  return Math.max(...references.map((ref) => parseInt(ref.lastMonthSell, 10) || 0));
+};
+
+const withComputedMonthlySales = (product) => {
+  const json = typeof product.toJSON === 'function' ? product.toJSON() : { ...product };
+  const references = parseJsonField(json.references, []);
+  if (references.length) {
+    json.monthlySalesEst = computeMaxMonthlySales(references);
+  }
+  return json;
+};
+
 const MAX_TOP_KEYWORDS = 20;
 const MAX_SUPPLIER_LINKS = 5;
 const MAX_BULLET_POINTS = 8;
@@ -164,7 +178,7 @@ exports.createProduct = async (req, res) => {
       references,
       mainImage: references[0].image,
       avgBsr: Math.floor(references.reduce((acc, curr) => acc + (parseInt(curr.bsr) || 0), 0) / references.length),
-      monthlySalesEst: Math.floor(references.reduce((acc, curr) => acc + (parseInt(curr.lastMonthSell) || 0), 0) / references.length),
+      monthlySalesEst: computeMaxMonthlySales(references),
       avgRoi: avgRoi || 0,
       vaultContents: vaultContents || [],
       expectedProfitMargin: expectedProfitMargin || 0,
@@ -205,11 +219,11 @@ exports.getFeaturedProducts = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 6, 12);
     const products = await MarketProduct.findAll({
       where: { status: 'active' },
-      attributes: ['id', 'price', 'category', 'marketplace', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'seasonal', 'trend', 'createdAt'],
+      attributes: ['id', 'price', 'category', 'marketplace', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'seasonal', 'trend', 'createdAt', 'references'],
       order: [['createdAt', 'DESC']],
       limit,
     });
-    res.json(products.map(anonymizeMarketplaceProduct));
+    res.json(products.map((product) => anonymizeMarketplaceProduct(withComputedMonthlySales(product))));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -238,10 +252,10 @@ exports.getAllProducts = async (req, res) => {
     // Clients see limited info before purchase
     const products = await MarketProduct.findAll({
       where: whereClause,
-      attributes: ['id', 'price', 'category', 'marketplace', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'seasonal', 'trend', 'createdAt'],
+      attributes: ['id', 'price', 'category', 'marketplace', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'seasonal', 'trend', 'createdAt', 'references'],
       order: [['createdAt', 'DESC']]
     });
-    const anonymizedProducts = products.map(anonymizeMarketplaceProduct);
+    const anonymizedProducts = products.map((product) => anonymizeMarketplaceProduct(withComputedMonthlySales(product)));
     res.json(anonymizedProducts);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -300,7 +314,7 @@ exports.getProductDetails = async (req, res) => {
         price: productJson.price,
         avgBsr: productJson.avgBsr,
         avgRoi: productJson.avgRoi,
-        monthlySalesEst: productJson.monthlySalesEst,
+        monthlySalesEst: computeMaxMonthlySales(productJson.references || []),
         expectedProfitMargin: productJson.expectedProfitMargin,
         seasonal: productJson.seasonal || 'no',
         trend: productJson.trend || 'up',
@@ -333,7 +347,7 @@ exports.getProductDetails = async (req, res) => {
     }
 
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.json({ ...product.toJSON(), isLocked: false });
+    res.json({ ...withComputedMonthlySales(product), isLocked: false });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -351,7 +365,7 @@ exports.getPurchasedProducts = async (req, res) => {
       where: { id: productIds }
     });
     
-    res.json(products);
+    res.json(products.map((product) => withComputedMonthlySales(product)));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -625,7 +639,7 @@ exports.updateProduct = async (req, res) => {
       references: references || product.references,
       mainImage: references && references.length > 0 ? references[0].image : product.mainImage,
       avgBsr: references ? Math.floor(references.reduce((acc, curr) => acc + (parseInt(curr.bsr) || 0), 0) / references.length) : product.avgBsr,
-      monthlySalesEst: references ? Math.floor(references.reduce((acc, curr) => acc + (parseInt(curr.lastMonthSell) || 0), 0) / references.length) : product.monthlySalesEst,
+      monthlySalesEst: references ? computeMaxMonthlySales(references) : product.monthlySalesEst,
       avgRoi: avgRoi !== undefined ? avgRoi : product.avgRoi,
       vaultContents: vaultContents !== undefined ? vaultContents : product.vaultContents,
       expectedProfitMargin: expectedProfitMargin !== undefined ? expectedProfitMargin : product.expectedProfitMargin,
@@ -669,9 +683,7 @@ exports.generateBlueprintPreview = async (req, res) => {
     const avgBsr = Math.floor(
       references.reduce((acc, curr) => acc + (parseInt(curr.bsr, 10) || 0), 0) / references.length
     );
-    const monthlySalesEst = Math.floor(
-      references.reduce((acc, curr) => acc + (parseInt(curr.lastMonthSell, 10) || 0), 0) / references.length
-    );
+    const monthlySalesEst = computeMaxMonthlySales(references);
 
     const prompt = buildBlueprintPreviewPrompt({
       price,
