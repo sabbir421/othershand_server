@@ -87,6 +87,21 @@ const MarketProductModel = sequelize.define('MarketProduct', {
     type: DataTypes.JSON,
     comment: 'Optional array of up to 8 bullet points (visible after purchase)',
   },
+  listingTitle: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Optional Amazon listing title (visible after purchase)',
+  },
+  backendKeywords: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Optional Amazon backend search terms (visible after purchase)',
+  },
+  listingDescription: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Optional Amazon listing description (visible after purchase)',
+  },
 }, {
   tableName: 'market_products',
   timestamps: true,

@@ -167,6 +167,9 @@ const startServer = async () => {
   await addColumnIfNotExists('market_products', 'topKeywords', 'JSON NULL');
   await addColumnIfNotExists('market_products', 'supplierLinks', 'JSON NULL');
   await addColumnIfNotExists('market_products', 'bulletPoints', 'JSON NULL');
+  await addColumnIfNotExists('market_products', 'listingTitle', 'VARCHAR(255) NULL');
+  await addColumnIfNotExists('market_products', 'backendKeywords', 'TEXT NULL');
+  await addColumnIfNotExists('market_products', 'listingDescription', 'TEXT NULL');
   await addColumnIfNotExists('market_products', 'marketplace', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('market_products', 'seasonal', 'VARCHAR(255) DEFAULT "no"');
   await addColumnIfNotExists('market_products', 'trend', 'VARCHAR(255) DEFAULT "up"');

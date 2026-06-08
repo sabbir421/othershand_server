@@ -33,6 +33,9 @@ const parseJsonField = (value, fallback) => {
 const MAX_TOP_KEYWORDS = 20;
 const MAX_SUPPLIER_LINKS = 5;
 const MAX_BULLET_POINTS = 8;
+const MAX_LISTING_TITLE_LENGTH = 200;
+const MAX_BACKEND_KEYWORDS_LENGTH = 250;
+const MAX_LISTING_DESCRIPTION_LENGTH = 5000;
 
 const sanitizeTopKeywords = (keywords) => {
   if (!keywords) return [];
@@ -61,6 +64,21 @@ const sanitizeBulletPoints = (points) => {
     .slice(0, MAX_BULLET_POINTS);
 };
 
+const sanitizeListingTitle = (value) => {
+  if (!value) return '';
+  return String(value).trim().slice(0, MAX_LISTING_TITLE_LENGTH);
+};
+
+const sanitizeBackendKeywords = (value) => {
+  if (!value) return '';
+  return String(value).trim().slice(0, MAX_BACKEND_KEYWORDS_LENGTH);
+};
+
+const sanitizeListingDescription = (value) => {
+  if (!value) return '';
+  return String(value).trim().slice(0, MAX_LISTING_DESCRIPTION_LENGTH);
+};
+
 const validateListingExtras = (topKeywords, supplierLinks, bulletPoints) => {
   if (topKeywords.length > MAX_TOP_KEYWORDS) {
     return `A maximum of ${MAX_TOP_KEYWORDS} top keywords is allowed.`;
@@ -78,14 +96,49 @@ const validateListingExtras = (topKeywords, supplierLinks, bulletPoints) => {
   return null;
 };
 
+const parseListingExtrasArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const getExtrasAvailability = (productJson) => {
+  const topKeywords = parseListingExtrasArray(productJson.topKeywords);
+  const supplierLinks = parseListingExtrasArray(productJson.supplierLinks);
+  const bulletPoints = parseListingExtrasArray(productJson.bulletPoints);
+
+  return {
+    topKeywordsCount: topKeywords.length,
+    supplierLinksCount: supplierLinks.length,
+    bulletPointsCount: bulletPoints.length,
+    hasListingTitle: Boolean(String(productJson.listingTitle || '').trim()),
+    hasBackendKeywords: Boolean(String(productJson.backendKeywords || '').trim()),
+    hasListingDescription: Boolean(String(productJson.listingDescription || '').trim()),
+  };
+};
+
 exports.createProduct = async (req, res) => {
   try {
-    const { title, category, marketplace, price, references, avgRoi, vaultContents, expectedProfitMargin, seasonal, trend, blueprintPreview, topKeywords, supplierLinks, bulletPoints } = req.body;
+    const {
+      title, category, marketplace, price, references, avgRoi, vaultContents, expectedProfitMargin, seasonal, trend, blueprintPreview,
+      topKeywords, supplierLinks, bulletPoints, listingTitle, backendKeywords, listingDescription,
+    } = req.body;
     const sellerId = req.user.id;
 
     const sanitizedTopKeywords = sanitizeTopKeywords(topKeywords);
     const sanitizedSupplierLinks = sanitizeSupplierLinks(supplierLinks);
     const sanitizedBulletPoints = sanitizeBulletPoints(bulletPoints);
+    const sanitizedListingTitle = sanitizeListingTitle(listingTitle);
+    const sanitizedBackendKeywords = sanitizeBackendKeywords(backendKeywords);
+    const sanitizedListingDescription = sanitizeListingDescription(listingDescription);
     const extrasError = validateListingExtras(sanitizedTopKeywords, sanitizedSupplierLinks, sanitizedBulletPoints);
     if (extrasError) {
       return res.status(400).json({ message: extrasError });
@@ -121,6 +174,9 @@ exports.createProduct = async (req, res) => {
       topKeywords: sanitizedTopKeywords,
       supplierLinks: sanitizedSupplierLinks,
       bulletPoints: sanitizedBulletPoints,
+      listingTitle: sanitizedListingTitle || null,
+      backendKeywords: sanitizedBackendKeywords || null,
+      listingDescription: sanitizedListingDescription || null,
     });
 
     res.status(201).json({ message: 'Research data posted successfully', product });
@@ -268,6 +324,10 @@ exports.getProductDetails = async (req, res) => {
         topKeywords: [],
         supplierLinks: [],
         bulletPoints: [],
+        listingTitle: '',
+        backendKeywords: '',
+        listingDescription: '',
+        extrasAvailability: getExtrasAvailability(productJson),
         isLocked: true 
       });
     }
@@ -518,6 +578,9 @@ exports.updateProduct = async (req, res) => {
       topKeywords,
       supplierLinks,
       bulletPoints,
+      listingTitle,
+      backendKeywords,
+      listingDescription,
     } = req.body;
 
     const sanitizedTopKeywords = topKeywords !== undefined
@@ -529,6 +592,15 @@ exports.updateProduct = async (req, res) => {
     const sanitizedBulletPoints = bulletPoints !== undefined
       ? sanitizeBulletPoints(bulletPoints)
       : sanitizeBulletPoints(product.bulletPoints);
+    const sanitizedListingTitle = listingTitle !== undefined
+      ? sanitizeListingTitle(listingTitle)
+      : sanitizeListingTitle(product.listingTitle);
+    const sanitizedBackendKeywords = backendKeywords !== undefined
+      ? sanitizeBackendKeywords(backendKeywords)
+      : sanitizeBackendKeywords(product.backendKeywords);
+    const sanitizedListingDescription = listingDescription !== undefined
+      ? sanitizeListingDescription(listingDescription)
+      : sanitizeListingDescription(product.listingDescription);
     const extrasError = validateListingExtras(sanitizedTopKeywords, sanitizedSupplierLinks, sanitizedBulletPoints);
     if (extrasError) {
       return res.status(400).json({ message: extrasError });
@@ -563,6 +635,9 @@ exports.updateProduct = async (req, res) => {
       topKeywords: sanitizedTopKeywords,
       supplierLinks: sanitizedSupplierLinks,
       bulletPoints: sanitizedBulletPoints,
+      listingTitle: sanitizedListingTitle || null,
+      backendKeywords: sanitizedBackendKeywords || null,
+      listingDescription: sanitizedListingDescription || null,
     });
 
     res.json({ message: 'Product updated successfully', product });
