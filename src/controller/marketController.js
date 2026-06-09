@@ -21,7 +21,10 @@ const {
   calculateSellerEarnings,
   fallbackPlatformFee,
   fallbackSellerEarnings,
+  PLATFORM_FEE_RATE,
+  SELLER_EARNINGS_RATE,
 } = require('../constants/sellerFees');
+const { finalizeMarketPurchase, getSellerFinancials } = require('../services/ledgerService');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'dummy_api_key_to_prevent_startup_crash',
@@ -404,10 +407,15 @@ exports.createCheckoutSession = async (req, res) => {
     const purchase = await MarketPurchase.create({
       clientId,
       marketProductId: productId,
+      sellerId: product.sellerId,
       amount: product.price,
       sellerEarnings,
       platformFee,
-      status: 'pending'
+      feeRatePlatform: PLATFORM_FEE_RATE,
+      feeRateSeller: SELLER_EARNINGS_RATE,
+      currency: 'USD',
+      paymentProvider: 'paddle',
+      status: 'pending',
     });
 
     const transaction = await paddle.transactions.create({
@@ -472,9 +480,12 @@ exports.verifyPurchase = async (req, res) => {
             });
           }
           if (purchase && purchase.clientId === clientId) {
-            if (purchase.status !== 'completed') {
-              purchase.status = 'completed';
-              await purchase.save();
+            if (purchase.status !== 'completed' || !purchase.ledgerProcessedAt) {
+              await finalizeMarketPurchase({
+                purchaseId: purchase.id,
+                paddleTransactionId: transaction_id,
+                source: 'verify',
+              });
             }
             return res.json({ success: true, productId: purchase.marketProductId });
           }
@@ -501,9 +512,11 @@ exports.verifyPurchase = async (req, res) => {
         });
 
         if (purchase) {
-          if (purchase.status !== 'completed') {
-            purchase.status = 'completed';
-            await purchase.save();
+          if (purchase.status !== 'completed' || !purchase.ledgerProcessedAt) {
+            await finalizeMarketPurchase({
+              purchaseId: purchase.id,
+              source: 'verify_stripe',
+            });
           }
           return res.json({ success: true, productId: purchase.marketProductId });
         }
@@ -529,15 +542,16 @@ exports.getSellerStats = async (req, res) => {
       }
     });
 
-    const totalEarnings = sales.reduce(
-      (acc, curr) => acc + parseFloat(curr.sellerEarnings || fallbackSellerEarnings(curr.amount)),
-      0
-    );
+    const financials = await getSellerFinancials(sellerId);
+    const totalEarnings = financials.totalEarned;
     
     res.json({
       totalProducts: products.length,
       totalSales: sales.length,
       totalEarnings,
+      availableBalance: financials.availableBalance,
+      pendingWithdrawals: financials.pendingWithdrawals,
+      totalWithdrawn: financials.totalWithdrawn,
       products
     });
   } catch (error) {

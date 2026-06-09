@@ -94,19 +94,40 @@ const webhook = async (req, res) => {
           // Handle Marketplace Purchase
           if (transaction.customData?.type === 'market_purchase') {
             const { productId, userId, purchaseId } = transaction.customData;
-            
-            // Finalize the EXACT purchase record using purchaseId
-            const MarketPurchase = require('../models/MarketPurchaseModel');
-            
-            const updateCriteria = purchaseId 
-              ? { id: purchaseId } 
-              : { clientId: userId, marketProductId: productId, status: 'pending' };
+            const { finalizeMarketPurchase } = require('../services/ledgerService');
 
-            await MarketPurchase.update(
-              { status: 'completed', paddleTransactionId: transaction.id },
-              { where: updateCriteria }
-            );
-            
+            const purchaseIdToFinalize = purchaseId
+              ? parseInt(purchaseId, 10)
+              : null;
+
+            if (purchaseIdToFinalize) {
+              await finalizeMarketPurchase({
+                purchaseId: purchaseIdToFinalize,
+                paddleTransactionId: transaction.id,
+                paymentEventId: event.eventId || event.id || `paddle:${transaction.id}`,
+                source: 'webhook',
+              });
+            } else {
+              const MarketPurchase = require('../models/MarketPurchaseModel');
+              const pendingPurchase = await MarketPurchase.findOne({
+                where: {
+                  clientId: userId,
+                  marketProductId: productId,
+                  status: 'pending',
+                },
+                order: [['createdAt', 'DESC']],
+              });
+
+              if (pendingPurchase) {
+                await finalizeMarketPurchase({
+                  purchaseId: pendingPurchase.id,
+                  paddleTransactionId: transaction.id,
+                  paymentEventId: event.eventId || event.id || `paddle:${transaction.id}`,
+                  source: 'webhook',
+                });
+              }
+            }
+
             if (isDev) {
               console.log(`Marketplace purchase completed: ${purchaseId || 'unknown'} for user ${userId}`);
             }

@@ -4,8 +4,10 @@ const MarketProductModel = require('../models/MarketProductModel');
 const MarketPurchaseModel = require('../models/MarketPurchaseModel');
 const SellerModel = require('../models/SellerModel');
 const PayoutModel = require('../models/PayoutModel');
+const { Op } = require('sequelize');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key_to_prevent_startup_crash');
-const { fallbackPlatformFee, fallbackSellerEarnings } = require('../constants/sellerFees');
+const { getPlatformFinancials } = require('../services/ledgerService');
+const LedgerEntry = require('../models/LedgerEntryModel');
 
 // @desc    Get Admin Statistics
 // @route   GET /api/admin/stats
@@ -23,18 +25,22 @@ const getAdminStats = async (req, res) => {
     
     const totalRevenue = totalSubscribers * planPrice;
 
-    const marketPurchases = await MarketPurchaseModel.findAll({
-      where: { status: 'completed' }
-    });
+    const platformFinancials = await getPlatformFinancials();
+    const totalMarketRevenue = platformFinancials.totalEarned;
 
-    const totalMarketRevenue = marketPurchases.reduce(
-      (acc, curr) => acc + parseFloat(curr.platformFee || fallbackPlatformFee(curr.amount)),
+    const completedPurchases = await MarketPurchaseModel.findAll({
+      where: { status: 'completed' },
+      attributes: ['sellerEarnings', 'amount'],
+    });
+    const totalSellerEarnings = completedPurchases.reduce(
+      (acc, curr) => acc + parseFloat(curr.sellerEarnings || (Number(curr.amount) * 0.75)),
       0
     );
-    const totalSellerPayoutsEarned = marketPurchases.reduce(
-      (acc, curr) => acc + parseFloat(curr.sellerEarnings || fallbackSellerEarnings(curr.amount)),
-      0
-    );
+
+    const totalWithdrawn = await PayoutModel.sum('amount', { where: { status: 'completed' } }) || 0;
+    const pendingPayoutAmount = await PayoutModel.sum('amount', {
+      where: { status: { [Op.in]: ['pending', 'processing'] } },
+    }) || 0;
 
     const pendingPayouts = await PayoutModel.count({ where: { status: 'pending' } });
     const processingPayouts = await PayoutModel.count({ where: { status: 'processing' } });
@@ -44,12 +50,34 @@ const getAdminStats = async (req, res) => {
       totalSubscribers,
       totalRevenue,
       totalMarketRevenue,
-      totalSellerPayouts: totalSellerPayoutsEarned,
-      pendingPayoutRequests: pendingPayouts + processingPayouts
+      platformAvailableBalance: platformFinancials.availableBalance,
+      totalSellerEarnings,
+      totalSellerWithdrawn: parseFloat(totalWithdrawn),
+      pendingPayoutAmount: parseFloat(pendingPayoutAmount),
+      totalSellerPayouts: totalSellerEarnings,
+      pendingPayoutRequests: pendingPayouts + processingPayouts,
     });
   } catch (error) {
     console.error('Admin Stats Error:', error);
     res.status(500).json({ message: 'Server Error fetching stats' });
+  }
+};
+
+const getAdminFinancials = async (req, res) => {
+  try {
+    const platform = await getPlatformFinancials();
+    const recentEntries = await LedgerEntry.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 50,
+    });
+
+    res.json({
+      platform,
+      recentEntries,
+    });
+  } catch (error) {
+    console.error('Admin Financials Error:', error);
+    res.status(500).json({ message: 'Server Error fetching financials' });
   }
 };
 
@@ -237,6 +265,7 @@ const updateMarketProductStatus = async (req, res) => {
 
 module.exports = {
   getAdminStats,
+  getAdminFinancials,
   getAllUsers,
   getAllPlans,
   createPlan,

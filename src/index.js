@@ -17,6 +17,9 @@ require('./models/SellerModel');
 require('./models/MarketProductModel');
 require('./models/MarketPurchaseModel');
 require('./models/PayoutModel');
+require('./models/AccountBalanceModel');
+require('./models/LedgerEntryModel');
+require('./models/PaymentEventModel');
 require('./models/ReviewModel');
 
 const app = express();
@@ -226,6 +229,20 @@ const startServer = async () => {
   await addColumnIfNotExists('market_purchases', 'paddleTransactionId', 'VARCHAR(255) NULL');
   await addColumnIfNotExists('market_purchases', 'sellerEarnings', 'DECIMAL(10, 2) NULL');
   await addColumnIfNotExists('market_purchases', 'platformFee', 'DECIMAL(10, 2) NULL');
+  await addColumnIfNotExists('market_purchases', 'sellerId', 'INT NULL');
+  await addColumnIfNotExists('market_purchases', 'currency', "VARCHAR(3) DEFAULT 'USD'");
+  await addColumnIfNotExists('market_purchases', 'feeRatePlatform', 'DECIMAL(5, 4) NULL');
+  await addColumnIfNotExists('market_purchases', 'feeRateSeller', 'DECIMAL(5, 4) NULL');
+  await addColumnIfNotExists('market_purchases', 'paymentProvider', "VARCHAR(16) NULL");
+  await addColumnIfNotExists('market_purchases', 'completedAt', 'DATETIME NULL');
+  await addColumnIfNotExists('market_purchases', 'ledgerProcessedAt', 'DATETIME NULL');
+
+  const {
+    backfillCompletedPurchases,
+    reconcileLegacyPayouts,
+  } = require('./services/ledgerService');
+  await backfillCompletedPurchases();
+  await reconcileLegacyPayouts();
 
   // FBA Fee Engine Seed Data
   const FbaCategory = require('./models/FbaCategory');
