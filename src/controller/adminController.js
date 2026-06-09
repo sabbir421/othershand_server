@@ -156,6 +156,47 @@ const togglePlanStatus = async (req, res) => {
   }
 };
 
+const parseJsonField = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value === 'string') {
+    try { return JSON.parse(value); } catch { return fallback; }
+  }
+  return value;
+};
+
+const formatMarketProduct = (product, seller = null) => {
+  const json = product.toJSON ? product.toJSON() : { ...product };
+  return {
+    ...json,
+    references: parseJsonField(json.references, []),
+    vaultContents: parseJsonField(json.vaultContents, []),
+    blueprintPreview: parseJsonField(json.blueprintPreview, null),
+    topKeywords: parseJsonField(json.topKeywords, []),
+    supplierLinks: parseJsonField(json.supplierLinks, []),
+    bulletPoints: parseJsonField(json.bulletPoints, []),
+    seller,
+  };
+};
+
+// @desc    Get single market product with full details
+// @route   GET /api/admin/market-products/:id
+// @access  Private/Admin
+const getMarketProductById = async (req, res) => {
+  try {
+    const product = await MarketProductModel.findByPk(req.params.id);
+    if (!product) return res.status(404).json({ message: 'Product not found' });
+
+    const seller = await SellerModel.findByPk(product.sellerId, {
+      attributes: ['id', 'firstName', 'email', 'country', 'phone'],
+    });
+
+    res.json(formatMarketProduct(product, seller));
+  } catch (error) {
+    console.error('Get Market Product Error:', error);
+    res.status(500).json({ message: 'Server Error fetching product' });
+  }
+};
+
 // @desc    Get All Market Products
 // @route   GET /api/admin/market-products
 // @access  Private/Admin
@@ -164,7 +205,7 @@ const getMarketProducts = async (req, res) => {
     const products = await MarketProductModel.findAll({
       order: [['createdAt', 'DESC']]
     });
-    res.json(products);
+    res.json(products.map((product) => formatMarketProduct(product)));
   } catch (error) {
     console.error('Get Market Products Error:', error);
     res.status(500).json({ message: 'Server Error fetching market products' });
@@ -201,5 +242,6 @@ module.exports = {
   createPlan,
   togglePlanStatus,
   getMarketProducts,
+  getMarketProductById,
   updateMarketProductStatus
 };
