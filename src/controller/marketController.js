@@ -35,11 +35,20 @@ const computeMaxMonthlySales = (references = []) => {
   return Math.max(...references.map((ref) => parseInt(ref.lastMonthSell, 10) || 0));
 };
 
-const withComputedMonthlySales = (product) => {
+const computeMinBsr = (references = []) => {
+  const values = references
+    .map((ref) => parseInt(ref.bsr, 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (!values.length) return 0;
+  return Math.min(...values);
+};
+
+const withComputedReferenceMetrics = (product) => {
   const json = typeof product.toJSON === 'function' ? product.toJSON() : { ...product };
   const references = parseJsonField(json.references, []);
   if (references.length) {
     json.monthlySalesEst = computeMaxMonthlySales(references);
+    json.avgBsr = computeMinBsr(references);
   }
   return json;
 };
@@ -177,7 +186,7 @@ exports.createProduct = async (req, res) => {
       price,
       references,
       mainImage: references[0].image,
-      avgBsr: Math.floor(references.reduce((acc, curr) => acc + (parseInt(curr.bsr) || 0), 0) / references.length),
+      avgBsr: computeMinBsr(references),
       monthlySalesEst: computeMaxMonthlySales(references),
       avgRoi: avgRoi || 0,
       vaultContents: vaultContents || [],
@@ -223,7 +232,7 @@ exports.getFeaturedProducts = async (req, res) => {
       order: [['createdAt', 'DESC']],
       limit,
     });
-    res.json(products.map((product) => anonymizeMarketplaceProduct(withComputedMonthlySales(product))));
+    res.json(products.map((product) => anonymizeMarketplaceProduct(withComputedReferenceMetrics(product))));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -255,7 +264,7 @@ exports.getAllProducts = async (req, res) => {
       attributes: ['id', 'price', 'category', 'marketplace', 'avgBsr', 'avgRoi', 'monthlySalesEst', 'seasonal', 'trend', 'createdAt', 'references'],
       order: [['createdAt', 'DESC']]
     });
-    const anonymizedProducts = products.map((product) => anonymizeMarketplaceProduct(withComputedMonthlySales(product)));
+    const anonymizedProducts = products.map((product) => anonymizeMarketplaceProduct(withComputedReferenceMetrics(product)));
     res.json(anonymizedProducts);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -304,7 +313,7 @@ exports.getProductDetails = async (req, res) => {
           category: ref.category || 'Verified Asset',
           image: 'REDACTED',
           productUrl: 'REDACTED',
-          competitorAnalysis: 'Intelligence Locked'
+          competitorAnalysis: ref.competitorAnalysis || '',
         };
       });
 
@@ -312,7 +321,7 @@ exports.getProductDetails = async (req, res) => {
       const safeRootData = {
         id: productJson.id,
         price: productJson.price,
-        avgBsr: productJson.avgBsr,
+        avgBsr: computeMinBsr(productJson.references || []),
         avgRoi: productJson.avgRoi,
         monthlySalesEst: computeMaxMonthlySales(productJson.references || []),
         expectedProfitMargin: productJson.expectedProfitMargin,
@@ -347,7 +356,7 @@ exports.getProductDetails = async (req, res) => {
     }
 
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.json({ ...withComputedMonthlySales(product), isLocked: false });
+    res.json({ ...withComputedReferenceMetrics(product), isLocked: false });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -365,7 +374,7 @@ exports.getPurchasedProducts = async (req, res) => {
       where: { id: productIds }
     });
     
-    res.json(products.map((product) => withComputedMonthlySales(product)));
+    res.json(products.map((product) => withComputedReferenceMetrics(product)));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -638,7 +647,7 @@ exports.updateProduct = async (req, res) => {
       price,
       references: references || product.references,
       mainImage: references && references.length > 0 ? references[0].image : product.mainImage,
-      avgBsr: references ? Math.floor(references.reduce((acc, curr) => acc + (parseInt(curr.bsr) || 0), 0) / references.length) : product.avgBsr,
+      avgBsr: references ? computeMinBsr(references) : product.avgBsr,
       monthlySalesEst: references ? computeMaxMonthlySales(references) : product.monthlySalesEst,
       avgRoi: avgRoi !== undefined ? avgRoi : product.avgRoi,
       vaultContents: vaultContents !== undefined ? vaultContents : product.vaultContents,
@@ -680,9 +689,7 @@ exports.generateBlueprintPreview = async (req, res) => {
       return res.status(400).json({ message: 'A maximum of 5 product references is allowed.' });
     }
 
-    const avgBsr = Math.floor(
-      references.reduce((acc, curr) => acc + (parseInt(curr.bsr, 10) || 0), 0) / references.length
-    );
+    const avgBsr = computeMinBsr(references);
     const monthlySalesEst = computeMaxMonthlySales(references);
 
     const prompt = buildBlueprintPreviewPrompt({
