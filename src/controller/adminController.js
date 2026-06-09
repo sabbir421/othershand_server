@@ -7,6 +7,7 @@ const PayoutModel = require('../models/PayoutModel');
 const { Op } = require('sequelize');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key_to_prevent_startup_crash');
 const { getPlatformFinancials, fallbackPlatformFee, fallbackSellerEarnings } = require('../services/ledgerService');
+const { splitMarketplacePurchase } = require('../constants/sellerFees');
 const LedgerEntry = require('../models/LedgerEntryModel');
 
 // @desc    Get Admin Statistics
@@ -274,9 +275,104 @@ const updateMarketProductStatus = async (req, res) => {
   }
 };
 
+const getAllMarketSales = async (req, res) => {
+  try {
+    const sales = await MarketPurchaseModel.findAll({
+      order: [['createdAt', 'DESC']],
+    });
+
+    if (!sales.length) {
+      return res.json([]);
+    }
+
+    const productIds = [...new Set(sales.map((s) => s.marketProductId))];
+    const clientIds = [...new Set(sales.map((s) => s.clientId))];
+    const sellerIds = [
+      ...new Set(
+        sales.map((s) => s.sellerId).filter(Boolean)
+      ),
+    ];
+
+    const [products, clients] = await Promise.all([
+      MarketProductModel.findAll({ where: { id: productIds } }),
+      UserModel.findAll({
+        where: { id: clientIds },
+        attributes: ['id', 'name', 'email'],
+      }),
+    ]);
+
+    const productMap = Object.fromEntries(products.map((p) => [p.id, p]));
+    const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
+
+    const sellerIdsFromProducts = products.map((p) => p.sellerId).filter(Boolean);
+    const allSellerIds = [...new Set([...sellerIds, ...sellerIdsFromProducts])];
+
+    const sellers = allSellerIds.length
+      ? await SellerModel.findAll({
+          where: { id: allSellerIds },
+          attributes: ['id', 'firstName', 'email', 'country'],
+        })
+      : [];
+    const sellerMap = Object.fromEntries(sellers.map((s) => [s.id, s]));
+
+    const enrichedSales = sales.map((sale) => {
+      const product = productMap[sale.marketProductId];
+      const sellerId = sale.sellerId || product?.sellerId;
+      const seller = sellerId ? sellerMap[sellerId] : null;
+      const client = clientMap[sale.clientId];
+      const split = splitMarketplacePurchase(sale.amount);
+
+      return {
+        id: sale.id,
+        amount: parseFloat(sale.amount),
+        sellerEarnings: parseFloat(sale.sellerEarnings || split.sellerEarnings),
+        platformFee: parseFloat(sale.platformFee || split.platformFee),
+        status: sale.status,
+        currency: sale.currency || 'USD',
+        paymentProvider: sale.paymentProvider || (sale.paddleTransactionId ? 'paddle' : 'stripe'),
+        paddleTransactionId: sale.paddleTransactionId,
+        stripeSessionId: sale.stripeSessionId,
+        completedAt: sale.completedAt,
+        ledgerProcessedAt: sale.ledgerProcessedAt,
+        createdAt: sale.createdAt,
+        product: product
+          ? {
+              id: product.id,
+              title: product.title,
+              category: product.category,
+              mainImage: product.mainImage,
+              marketplace: product.marketplace || 'US',
+            }
+          : null,
+        seller: seller
+          ? {
+              id: seller.id,
+              name: seller.firstName,
+              email: seller.email,
+              country: seller.country,
+            }
+          : null,
+        buyer: client
+          ? {
+              id: client.id,
+              name: client.name,
+              email: client.email,
+            }
+          : null,
+      };
+    });
+
+    res.json(enrichedSales);
+  } catch (error) {
+    console.error('Get All Market Sales Error:', error);
+    res.status(500).json({ message: 'Server Error fetching sales history' });
+  }
+};
+
 module.exports = {
   getAdminStats,
   getAdminFinancials,
+  getAllMarketSales,
   getAllUsers,
   getAllPlans,
   createPlan,
