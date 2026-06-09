@@ -6,7 +6,7 @@ const SellerModel = require('../models/SellerModel');
 const PayoutModel = require('../models/PayoutModel');
 const { Op } = require('sequelize');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key_to_prevent_startup_crash');
-const { getPlatformFinancials } = require('../services/ledgerService');
+const { getPlatformFinancials, fallbackPlatformFee, fallbackSellerEarnings } = require('../services/ledgerService');
 const LedgerEntry = require('../models/LedgerEntryModel');
 
 // @desc    Get Admin Statistics
@@ -26,16 +26,27 @@ const getAdminStats = async (req, res) => {
     const totalRevenue = totalSubscribers * planPrice;
 
     const platformFinancials = await getPlatformFinancials();
-    const totalMarketRevenue = platformFinancials.totalEarned;
 
     const completedPurchases = await MarketPurchaseModel.findAll({
       where: { status: 'completed' },
-      attributes: ['sellerEarnings', 'amount'],
+      attributes: ['sellerEarnings', 'platformFee', 'amount'],
     });
-    const totalSellerEarnings = completedPurchases.reduce(
-      (acc, curr) => acc + parseFloat(curr.sellerEarnings || (Number(curr.amount) * 0.75)),
+
+    const totalSellerEarningsFromPurchases = completedPurchases.reduce(
+      (acc, curr) => acc + parseFloat(curr.sellerEarnings || fallbackSellerEarnings(curr.amount)),
       0
     );
+    const totalPlatformFeeFromPurchases = completedPurchases.reduce(
+      (acc, curr) => acc + parseFloat(curr.platformFee || fallbackPlatformFee(curr.amount)),
+      0
+    );
+
+    const totalMarketRevenue =
+      platformFinancials.totalEarned > 0
+        ? platformFinancials.totalEarned
+        : totalPlatformFeeFromPurchases;
+    const totalSellerEarnings =
+      totalSellerEarningsFromPurchases;
 
     const totalWithdrawn = await PayoutModel.sum('amount', { where: { status: 'completed' } }) || 0;
     const pendingPayoutAmount = await PayoutModel.sum('amount', {

@@ -8,8 +8,7 @@ const Payout = require('../models/PayoutModel');
 const {
   PLATFORM_FEE_RATE,
   SELLER_EARNINGS_RATE,
-  calculatePlatformFee,
-  calculateSellerEarnings,
+  splitMarketplacePurchase,
   fallbackPlatformFee,
   fallbackSellerEarnings,
 } = require('../constants/sellerFees');
@@ -95,14 +94,16 @@ const appendLedgerEntry = async ({
 
 const resolvePurchaseAmounts = (purchase) => {
   const gross = toMoney(purchase.amount);
-  const sellerEarnings = toMoney(
-    purchase.sellerEarnings ?? calculateSellerEarnings(gross)
-  );
-  const platformFee = toMoney(
-    purchase.platformFee ?? calculatePlatformFee(gross)
-  );
 
-  return { gross, sellerEarnings, platformFee };
+  if (purchase.sellerEarnings != null && purchase.platformFee != null) {
+    const sellerEarnings = toMoney(purchase.sellerEarnings);
+    const platformFee = toMoney(purchase.platformFee);
+    if (toMoney(sellerEarnings + platformFee) === gross) {
+      return { gross, sellerEarnings, platformFee };
+    }
+  }
+
+  return splitMarketplacePurchase(gross);
 };
 
 const recordPaymentEvent = async ({
@@ -158,23 +159,35 @@ const finalizeMarketPurchase = async ({
         transaction,
       });
       if (isDuplicate) {
-        const existingLedger = await LedgerEntry.findOne({
+        const existingSellerLedger = await LedgerEntry.findOne({
           where: { idempotencyKey: `${idempotencyBase}:seller_credit` },
           transaction,
         });
-        if (existingLedger) {
+        const existingPlatformLedger = await LedgerEntry.findOne({
+          where: { idempotencyKey: `${idempotencyBase}:platform_fee` },
+          transaction,
+        });
+        if (existingSellerLedger && existingPlatformLedger) {
           const purchase = await MarketPurchase.findByPk(purchaseId, { transaction });
           return { purchase, alreadyProcessed: true };
         }
       }
     }
 
-    const existingLedger = await LedgerEntry.findOne({
+    const existingSellerLedger = await LedgerEntry.findOne({
       where: { idempotencyKey: `${idempotencyBase}:seller_credit` },
       transaction,
     });
-    if (existingLedger) {
+    const existingPlatformLedger = await LedgerEntry.findOne({
+      where: { idempotencyKey: `${idempotencyBase}:platform_fee` },
+      transaction,
+    });
+    if (existingSellerLedger && existingPlatformLedger) {
       const purchase = await MarketPurchase.findByPk(purchaseId, { transaction });
+      if (purchase && !purchase.ledgerProcessedAt) {
+        purchase.ledgerProcessedAt = new Date();
+        await purchase.save({ transaction });
+      }
       return { purchase, alreadyProcessed: true };
     }
 
