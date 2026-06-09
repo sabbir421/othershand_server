@@ -12,6 +12,11 @@ const {
   normalizeBlueprintPreview,
 } = require('../utils/blueprintPreviewAnalysis');
 const {
+  REFERENCE_INTEL_SYSTEM_PROMPT,
+  buildReferenceIntelPrompt,
+  normalizeReferenceIntel,
+} = require('../utils/referenceIntelGeneration');
+const {
   calculatePlatformFee,
   calculateSellerEarnings,
   fallbackPlatformFee,
@@ -666,6 +671,54 @@ exports.updateProduct = async (req, res) => {
     res.json({ message: 'Product updated successfully', product });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.generateReferenceIntel = async (req, res) => {
+  try {
+    const {
+      bsr,
+      review,
+      lastMonthSell,
+      category,
+      marketplace,
+      title,
+      productUrl,
+    } = req.body;
+
+    if (!bsr || !review || lastMonthSell === undefined || lastMonthSell === '') {
+      return res.status(400).json({
+        message: 'BSR, review count, and last month unit sales are required to generate reference intel.',
+      });
+    }
+
+    const prompt = buildReferenceIntelPrompt({
+      bsr,
+      review,
+      lastMonthSell,
+      category,
+      marketplace,
+      title,
+      productUrl,
+    });
+
+    const response = await openai.chat.completions.create({
+      model: process.env.OPENAI_RESPONSES_MODEL || 'gpt-4o',
+      messages: [
+        { role: 'system', content: REFERENCE_INTEL_SYSTEM_PROMPT },
+        { role: 'user', content: prompt },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.55,
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content);
+    const reference = normalizeReferenceIntel(parsed);
+
+    res.json({ reference });
+  } catch (error) {
+    console.error('Reference Intel Error:', error);
+    res.status(500).json({ message: error.message || 'Failed to generate reference intel' });
   }
 };
 

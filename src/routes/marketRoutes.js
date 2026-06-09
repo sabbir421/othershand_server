@@ -15,6 +15,7 @@ router.post('/checkout', protect, marketController.createCheckoutSession);
 router.put('/update/:id', protect, marketController.updateProduct);
 router.post('/post', protect, marketController.createProduct);
 router.post('/generate-preview', protect, marketController.generateBlueprintPreview);
+router.post('/generate-reference-intel', protect, marketController.generateReferenceIntel);
 router.get('/stats', protect, marketController.getSellerStats);
 router.post('/click/:id', marketController.incrementView);
 router.delete('/delete/:id', protect, marketController.deleteProduct);
