@@ -21,11 +21,13 @@ require('./models/AccountBalanceModel');
 require('./models/LedgerEntryModel');
 require('./models/PaymentEventModel');
 require('./models/ReviewModel');
+require('./models/AdminChatConversationModel');
+require('./models/AdminChatMessageModel');
 
 const app = express();
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 

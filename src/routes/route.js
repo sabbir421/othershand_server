@@ -17,6 +17,7 @@ const publicRoutes = require('./publicRoutes');
 const feedbackRoutes = require('./feedbackRoutes');
 const payoutRoutes = require('./payoutRoutes');
 const reviewRoutes = require('./reviewRoutes');
+const adminChatRoutes = require('./adminChatRoutes');
 const router = express.Router();
 
 router.use('/auth', authRoutes);
@@ -26,6 +27,7 @@ router.use('/ai', aiRoutes);
 router.use('/stripe', stripeRoutes);
 router.use('/paddle', paddleRoutes);
 router.use('/admin', adminRoutes);
+router.use('/admin/ai-chat', adminChatRoutes);
 router.use('/research', researchRoutes);
 router.use('/launch', launchRoutes);
 router.use('/suppliers', supplierRoutes);
